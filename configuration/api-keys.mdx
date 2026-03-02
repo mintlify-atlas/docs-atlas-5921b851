@@ -1,0 +1,177 @@
+---
+title: API Keys
+description: Configure Google Gemini API credentials for Intelligence Space
+---
+
+## Overview
+
+Intelligence Space uses the Google Gemini API to generate contextual relationships and expand the knowledge graph. You'll need to obtain an API key from Google Cloud Platform and configure it in your local environment.
+
+## Getting Your Gemini API Key
+
+<Steps>
+  <Step title="Access Google AI Studio">
+    Navigate to [Google AI Studio](https://aistudio.google.com/app/apikey) to create your API key.
+    
+    <Info>
+      You'll need a Google account to access AI Studio. If you don't have one, create it at [accounts.google.com](https://accounts.google.com/).
+    </Info>
+  </Step>
+
+  <Step title="Create an API key">
+    1. Click **"Get API Key"** or **"Create API Key"**
+    2. Select an existing Google Cloud project or create a new one
+    3. Copy the generated API key to your clipboard
+    
+    <Warning>
+      Keep your API key secure! Never commit it to version control or share it publicly.
+    </Warning>
+  </Step>
+
+  <Step title="Review API quotas">
+    Check your API quota limits in the [Google Cloud Console](https://console.cloud.google.com/apis/api/generativelanguage.googleapis.com/quotas).
+    
+    The Gemini 2.5 Flash model used by Intelligence Space has generous free tier limits suitable for development.
+  </Step>
+</Steps>
+
+## Configuring Environment Variables
+
+<Steps>
+  <Step title="Create .env.local file">
+    In the root directory of your Intelligence Space project, create a new file named `.env.local`:
+    
+    ```bash
+    touch .env.local
+    ```
+  </Step>
+
+  <Step title="Add your API key">
+    Open `.env.local` and add your Gemini API key:
+    
+    ```env
+    GEMINI_API_KEY=your_api_key_here
+    ```
+    
+    Replace `your_api_key_here` with the actual API key you copied from Google AI Studio.
+  </Step>
+
+  <Step title="Verify configuration">
+    The `.env.local` file should look like this:
+    
+    ```env
+    GEMINI_API_KEY=AIzaSyABC123defGHI456jklMNO789pqrSTU012
+    ```
+    
+    <Note>
+      The `.env.local` file is automatically ignored by Git (included in `.gitignore`), so your credentials remain private.
+    </Note>
+  </Step>
+</Steps>
+
+## Environment Variable Reference
+
+Intelligence Space uses the following environment variable:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `GEMINI_API_KEY` | Yes | Your Google Gemini API key for accessing the Gemini 2.5 Flash model |
+
+## Fallback Behavior
+
+If the `GEMINI_API_KEY` is not configured:
+
+- The application will start successfully
+- The 3D visualization interface will load normally
+- **Graph expansion will fail** when you try to explore a concept
+- You'll see an error indicating the API key is missing
+
+<Warning>
+  Without a valid API key, the core knowledge graph expansion feature will not work. Make sure to configure your API key before using the application.
+</Warning>
+
+## Security Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Never commit .env.local" icon="ban">
+    Always keep `.env.local` in your `.gitignore` file. Never commit API keys to version control.
+  </Card>
+
+  <Card title="Use separate keys" icon="key">
+    Use different API keys for development, staging, and production environments.
+  </Card>
+
+  <Card title="Rotate keys regularly" icon="rotate">
+    Periodically generate new API keys and revoke old ones in Google Cloud Console.
+  </Card>
+
+  <Card title="Monitor usage" icon="chart-line">
+    Regularly check your API usage in Google Cloud Console to detect any unauthorized access.
+  </Card>
+</CardGroup>
+
+## Server-Side Security
+
+<Info>
+  Intelligence Space uses Next.js Server Actions to call the Gemini API. Your API key is **never exposed to the client browser**, ensuring it remains secure.
+</Info>
+
+The API integration happens in `actions.ts`, which runs exclusively on the server (Node.js runtime). This architecture:
+
+- Prevents API key exposure in client-side JavaScript
+- Reduces latency by processing requests server-side
+- Enables request validation and rate limiting
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="API key not found error">
+    If you see "API key not found" errors:
+    
+    1. Verify `.env.local` exists in the project root (not in subdirectories)
+    2. Check the variable name is exactly `GEMINI_API_KEY` (case-sensitive)
+    3. Restart the development server after adding the key:
+       ```bash
+       npm run dev
+       ```
+    4. Ensure there are no spaces around the `=` sign
+  </Accordion>
+
+  <Accordion title="Invalid API key error">
+    If your API key is rejected:
+    
+    1. Verify you copied the complete key from Google AI Studio
+    2. Check the key hasn't been revoked in Google Cloud Console
+    3. Ensure the Generative Language API is enabled for your project
+    4. Generate a new key if necessary
+  </Accordion>
+
+  <Accordion title="Rate limit exceeded">
+    If you hit rate limits:
+    
+    1. Check your current quota usage in [Google Cloud Console](https://console.cloud.google.com/apis/api/generativelanguage.googleapis.com/quotas)
+    2. Wait for the quota to reset (usually per minute or per day)
+    3. Consider requesting a quota increase for production use
+    4. Implement client-side rate limiting to reduce API calls
+  </Accordion>
+
+  <Accordion title="Environment variable not loading">
+    If changes to `.env.local` aren't taking effect:
+    
+    1. Restart the Next.js development server completely
+    2. Verify the file is in the project root directory
+    3. Check for syntax errors (no quotes needed around the value)
+    4. Clear Next.js cache:
+       ```bash
+       rm -rf .next
+       npm run dev
+       ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+With your API key configured, you're ready to start using Intelligence Space! Learn more about:
+
+- [Quick Start Guide](/getting-started/quickstart) - Launch your first knowledge graph
+- [Basic Usage](/getting-started/basic-usage) - Learn core features and interactions

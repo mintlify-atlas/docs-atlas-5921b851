@@ -1,0 +1,101 @@
+---
+title: 'generateSubInterests'
+description: 'Server action that generates related sub-interests using Gemini AI'
+---
+
+## Overview
+
+The `generateSubInterests` server action uses Google's Gemini 2.5 Flash model to generate 3-5 highly relevant sub-interests or related topics for a given interest. It includes automatic fallback to mock data if the API key is missing or if an error occurs.
+
+## Function Signature
+
+```typescript
+export async function generateSubInterests(interest: string): Promise<string[]>
+```
+
+## Parameters
+
+<ParamField path="interest" type="string" required>
+  The main interest or topic to generate sub-interests for. This will be sent to the Gemini API as context for generation.
+</ParamField>
+
+## Returns
+
+<ResponseField name="subInterests" type="string[]">
+  An array of 3-5 strings representing related sub-interests or topics. The array is limited to a maximum of 5 items even if the API returns more.
+</ResponseField>
+
+## Behavior
+
+### API Key Check
+
+The function first checks for the `GEMINI_API_KEY` environment variable:
+- If missing, logs a warning and returns mock data
+- If present, proceeds with the API call
+
+### Response Processing
+
+The function expects a raw JSON array from Gemini (without markdown code blocks):
+1. Removes any `\`\`\`json` or `\`\`\`` markdown formatting
+2. Parses the cleaned response as JSON
+3. Validates that the result is an array
+4. Returns up to 5 items from the array
+
+### Error Handling
+
+If any error occurs during the API call or response parsing:
+- Logs the error to console
+- Returns fallback mock data based on the input interest
+
+## Usage Example
+
+```typescript
+import { generateSubInterests } from '@/app/actions';
+
+// In a server component or another server action
+const subTopics = await generateSubInterests('Machine Learning');
+// Returns: ["Neural Networks", "Deep Learning Frameworks", ...]
+
+// In a client component (with transition)
+const handleExpand = async (interest: string) => {
+  const [isPending, startTransition] = useTransition();
+  
+  startTransition(async () => {
+    const subInterests = await generateSubInterests(interest);
+    // Process the results
+  });
+};
+```
+
+## Mock Data Fallback
+
+When the API key is missing or an error occurs, the function returns:
+
+```typescript
+[
+  `${interest} Essentials`,
+  `Advanced ${interest}`,
+  `${interest} Tools`,
+  `${interest} History`
+]
+```
+
+## Environment Variables
+
+<ParamField path="GEMINI_API_KEY" type="string" required>
+  Google Gemini API key. Required for AI-generated responses. Without this key, the function falls back to mock data.
+</ParamField>
+
+## Error Cases
+
+| Error Type | Behavior |
+|------------|----------|
+| Missing API key | Returns mock data, logs warning |
+| Empty response | Throws error, caught by try-catch, returns mock data |
+| Invalid JSON | Parse error caught, returns mock data |
+| Non-array response | Throws error, returns mock data |
+| Network error | Caught by try-catch, returns mock data |
+
+## Source Code Location
+
+`app/actions.ts:7-47`

@@ -1,0 +1,128 @@
+---
+title: Environment Setup
+description: Set up your development environment for Intelligence Space
+---
+
+## Prerequisites
+
+Before installing Intelligence Space, ensure you have the following installed on your system:
+
+- **Node.js**: Version 20 or higher
+- **npm**: Comes bundled with Node.js
+
+## Installation
+
+<Steps>
+  <Step title="Clone the repository">
+    Clone the Intelligence Space repository to your local machine:
+    ```bash
+    git clone <repository-url>
+    cd intelligence
+    ```
+  </Step>
+
+  <Step title="Install dependencies">
+    Install all required packages using npm:
+    ```bash
+    npm install
+    ```
+    
+    This will install all dependencies including:
+    - **Next.js 16.1.6** - React framework for server-side rendering
+    - **React 19.2.3** - UI library
+    - **Three.js & React Three Fiber** - 3D rendering engine
+    - **@google/genai** - Google Gemini API client
+    - **d3-force-3d** - Physics simulation for graph layout
+    - **Zustand** - State management
+    - **Tailwind CSS v4** - Styling framework
+  </Step>
+
+  <Step title="Verify installation">
+    Check that all dependencies were installed correctly:
+    ```bash
+    npm list --depth=0
+    ```
+  </Step>
+</Steps>
+
+## Project Structure
+
+Once installed, your project structure includes:
+
+- **`/app`** - Next.js App Router pages and layouts
+- **`/components`** - React components for UI and 3D visualization
+- **`/lib`** - Utility functions and configurations
+- **`/actions.ts`** - Server Actions for Gemini API integration
+- **`.env.local`** - Environment variables (you'll create this)
+- **`package.json`** - Project dependencies and scripts
+
+## Available Scripts
+
+After installation, you can use these npm scripts:
+
+```bash
+# Start development server
+npm run dev
+
+# Build for production
+npm run build
+
+# Start production server
+npm run start
+
+# Run linter
+npm run lint
+```
+
+## Development Server
+
+The development server runs on `http://localhost:3000` by default. Hot reloading is enabled, so changes to your code will automatically reflect in the browser.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="npm install fails with permission errors">
+    If you encounter permission errors during installation:
+    
+    1. Avoid using `sudo` with npm
+    2. Configure npm to use a different directory:
+       ```bash
+       mkdir ~/.npm-global
+       npm config set prefix '~/.npm-global'
+       export PATH=~/.npm-global/bin:$PATH
+       ```
+    3. Try the installation again
+  </Accordion>
+
+  <Accordion title="Node.js version is too old">
+    Intelligence Space requires Node.js 20 or higher. Update Node.js using:
+    
+    - **nvm (recommended)**:
+      ```bash
+      nvm install 20
+      nvm use 20
+      ```
+    - **Direct download**: Visit [nodejs.org](https://nodejs.org/)
+  </Accordion>
+
+  <Accordion title="Module resolution errors">
+    If you see module resolution errors:
+    
+    1. Delete `node_modules` and `package-lock.json`:
+       ```bash
+       rm -rf node_modules package-lock.json
+       ```
+    2. Clear npm cache:
+       ```bash
+       npm cache clean --force
+       ```
+    3. Reinstall dependencies:
+       ```bash
+       npm install
+       ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+After setting up your environment, proceed to [API Keys configuration](/configuration/api-keys) to configure your Google Gemini API credentials.

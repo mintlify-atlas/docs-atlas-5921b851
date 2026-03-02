@@ -1,0 +1,306 @@
+---
+title: 'AI Expansion'
+description: 'How Gemini AI intelligently generates related concepts to grow your knowledge graph'
+---
+
+## Overview
+
+Every node in Intelligence Space can be expanded using **Google Gemini AI** to discover related interests. Click any sphere, and within seconds, 3-5 new concepts appear, connected to the parent node. This creates an ever-growing web of knowledge tailored to your exploration.
+
+<Note>
+  Intelligence Space uses **Gemini 2.5 Flash** for fast, high-quality content generation.
+</Note>
+
+## How It Works
+
+<Steps>
+  <Step title="User Clicks a Node">
+    When you click a sphere in the 3D graph, the `handleExpand` function is triggered with the node's label:
+    
+    ```tsx
+    <mesh
+      onClick={(e) => {
+        e.stopPropagation();
+        onExpand(node.id, node.label);
+      }}
+    />
+    ```
+    
+    A loading indicator appears above the node (three bouncing dots).
+  </Step>
+  
+  <Step title="Server Action Called">
+    The `generateSubInterests` server action is invoked from src/app/actions.ts:7:
+    
+    ```tsx
+    const sub = await generateSubInterests(label);
+    ```
+    
+    This is a Next.js server action that runs securely on the backend with API key access.
+  </Step>
+  
+  <Step title="AI Generates Related Concepts">
+    Gemini AI receives a carefully crafted prompt and returns 3-5 related sub-interests as a JSON array.
+  </Step>
+  
+  <Step title="New Nodes Added">
+    The returned concepts are added to the graph as child nodes, connected to the parent with spring forces that naturally position them in 3D space.
+  </Step>
+</Steps>
+
+## The AI Prompt
+
+### Prompt Engineering
+
+The prompt is designed to produce **structured, consistent output** while encouraging creative exploration:
+
+```typescript
+`You are an AI that helps brainstorm and expand on interests. Given an interest, provide 3 to 5 highly relevant sub-interests or related topics.
+Only provide a JSON array of strings as the response. Do not include any markdown formatting like \`\`\`json. Just the raw array.
+Example: ["Sub Topic 1", "Sub Topic 2", "Sub Topic 3"]
+
+Interest: ${interest}
+`
+```
+
+<Accordion title="Why This Prompt Works">
+  **Key Design Decisions:**
+  
+  1. **Role Setting** - "You are an AI that helps brainstorm..." establishes the AI's purpose
+  2. **Clear Constraints** - "3 to 5 highly relevant" prevents overwhelming or sparse results
+  3. **Format Specification** - "Only provide a JSON array" ensures parseable output
+  4. **Markdown Prevention** - Explicitly forbids ```json wrappers that would break parsing
+  5. **Example Provided** - Shows exact format expected
+  
+  This reduces hallucination and ensures reliable JSON parsing.
+</Accordion>
+
+### Example Results
+
+<Tabs>
+  <Tab title="Input: Quantum Physics">
+    ```json
+    [
+      "Quantum Entanglement",
+      "Wave-Particle Duality",
+      "Quantum Computing Applications",
+      "Heisenberg Uncertainty Principle",
+      "Quantum Field Theory"
+    ]
+    ```
+  </Tab>
+  
+  <Tab title="Input: Minimalist Art">
+    ```json
+    [
+      "Monochromatic Color Palettes",
+      "Geometric Abstraction",
+      "Negative Space Techniques",
+      "Japanese Wabi-Sabi Aesthetic",
+      "Contemporary Minimalist Painters"
+    ]
+    ```
+  </Tab>
+  
+  <Tab title="Input: Renaissance Music">
+    ```json
+    [
+      "Polyphonic Vocal Composition",
+      "Early Instrument Making",
+      "Sacred vs Secular Motets",
+      "Venetian School Composers",
+      "Dance Forms of the 16th Century"
+    ]
+    ```
+  </Tab>
+</Tabs>
+
+## API Integration
+
+### Google GenAI Setup
+
+The integration uses the official `@google/genai` SDK:
+
+```typescript
+import { GoogleGenAI } from '@google/genai';
+
+const ai = new GoogleGenAI({});
+```
+
+<Tip>
+  The API key is automatically loaded from the `GEMINI_API_KEY` environment variable.
+</Tip>
+
+### Making the Request
+
+```typescript
+const response = await ai.models.generateContent({
+  model: 'gemini-2.5-flash',
+  contents: `[prompt text]`,
+});
+
+const text = response.text;
+```
+
+### Response Parsing
+
+The response undergoes careful cleaning before JSON parsing:
+
+```typescript
+const cleanText = text
+  .replace(/```json/gi, '')
+  .replace(/```/g, '')
+  .trim();
+  
+const array = JSON.parse(cleanText);
+return array.slice(0, 5); // Limit to 5 items
+```
+
+<Note>
+  The `.slice(0, 5)` ensures that even if the AI returns more than 5 items, only the first 5 are used to prevent visual clutter.
+</Note>
+
+## Fallback Handling
+
+### Graceful Degradation
+
+Intelligence Space **never fails** - if the API is unavailable or returns invalid data, it falls back to mock data:
+
+<Tabs>
+  <Tab title="No API Key">
+    If `GEMINI_API_KEY` is missing:
+    
+    ```typescript
+    if (!process.env.GEMINI_API_KEY) {
+      console.warn("GEMINI_API_KEY is not defined. Using mock data.");
+      return [
+        `${interest} Essentials`,
+        `Advanced ${interest}`,
+        `${interest} Tools`,
+      ];
+    }
+    ```
+    
+    Users can still explore the interface with generic but relevant sub-topics.
+  </Tab>
+  
+  <Tab title="API Error">
+    If the API call fails or returns unparseable data:
+    
+    ```typescript
+    catch (error) {
+      console.error("Gemini API error:", error);
+      return [
+        `${interest} Essentials`,
+        `Advanced ${interest}`,
+        `${interest} Tools`,
+        `${interest} History`
+      ];
+    }
+    ```
+    
+    The user experience continues seamlessly with 4 fallback topics.
+  </Tab>
+</Tabs>
+
+<Warning>
+  Always set `GEMINI_API_KEY` in your environment variables for production deployments to enable AI-powered expansion.
+</Warning>
+
+## Loading UX
+
+### Preventing Double-Clicks
+
+The system prevents multiple simultaneous expansions:
+
+```tsx
+const [loadingNodeId, setLoadingNodeId] = useState<string | null>(null);
+
+const handleExpand = async (id: string, label: string) => {
+  if (loadingNodeId) return; // Block if already loading
+  setLoadingNodeId(id);
+  try {
+    const sub = await generateSubInterests(label);
+    addNodes(sub, id);
+  } finally {
+    setLoadingNodeId(null);
+  }
+};
+```
+
+### Visual Feedback
+
+While AI generates content, a **bouncing dots indicator** appears above the node:
+
+```tsx
+{loadingNodeId && (
+  <Html position={[node.x, node.y + node.radius + 0.5, node.z]} center>
+    <div className="flex space-x-1 items-center bg-black/50 px-2 py-1 rounded-full backdrop-blur-md">
+      <div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" 
+           style={{ animationDelay: "0ms" }}></div>
+      <div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" 
+           style={{ animationDelay: "150ms" }}></div>
+      <div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" 
+           style={{ animationDelay: "300ms" }}></div>
+    </div>
+  </Html>
+)}
+```
+
+## Automatic Initial Expansion
+
+### First Node Behavior
+
+When you enter your first interest, Intelligence Space **automatically expands it** to kickstart exploration:
+
+```tsx
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  const label = input.trim();
+  const newNode = addNode(label);
+  
+  // Automatically trigger expansion
+  setIsGenerating(true);
+  const { generateSubInterests } = await import('@/app/actions');
+  const sub = await generateSubInterests(label);
+  useInterestStore.getState().addNodes(sub, newNode.id);
+  setIsGenerating(false);
+};
+```
+
+This immediately creates a small cluster of 4-6 nodes, giving you multiple directions to explore.
+
+<Tip>
+  The submit button shows a **spinning loader** during initial generation, then switches back to the sparkles icon.
+</Tip>
+
+## Performance Considerations
+
+<CardGroup cols={2}>
+  <Card title="Response Time" icon="clock">
+    Gemini 2.5 Flash typically responds in **1-3 seconds**, providing near-instant expansion.
+  </Card>
+  
+  <Card title="Cost Efficiency" icon="dollar-sign">
+    Using the Flash model keeps API costs minimal while maintaining quality.
+  </Card>
+  
+  <Card title="Error Recovery" icon="shield">
+    Fallback mock data ensures the app never crashes from API failures.
+  </Card>
+  
+  <Card title="Concurrent Safety" icon="lock">
+    The `loadingNodeId` state prevents race conditions from multiple clicks.
+  </Card>
+</CardGroup>
+
+---
+
+<CardGroup cols={2}>
+  <Card title="3D Visualization" icon="cube" href="/features/3d-visualization">
+    Learn how the 3D graph is rendered
+  </Card>
+  <Card title="Interactive Navigation" icon="hand-pointer" href="/features/interactive-navigation">
+    Discover navigation and interaction patterns
+  </Card>
+</CardGroup>

@@ -1,0 +1,212 @@
+---
+title: 'ThreeGraph'
+description: '3D force-directed graph component with interactive node expansion'
+---
+
+## Overview
+
+The `ThreeGraph` component is the main visualization that renders the 3D interest graph using React Three Fiber. It orchestrates node rendering, physics simulation, link visualization, and handles user interactions for expanding nodes.
+
+## Component Signature
+
+```typescript
+export default function ThreeGraph(): JSX.Element
+```
+
+## Props
+
+This component takes no props. It reads state directly from the Zustand store.
+
+## Features
+
+### Interactive Node Expansion
+
+- Clicking a node triggers AI generation for sub-interests
+- Shows loading animation above the expanding node
+- Prevents multiple simultaneous expansions
+- Automatically adds child nodes and links on completion
+
+### Real-time Physics
+
+- Force-directed layout with spring and repulsion forces
+- Smooth animations via React Three Fiber's `useFrame` hook
+- Nodes reach equilibrium naturally over time
+
+### Visual Feedback
+
+- Hover effects on nodes (color changes to white)
+- Loading indicator with bouncing dots
+- Billboard text labels that always face camera
+
+## Internal State
+
+<ParamField path="loadingNodeId" type="string | null">
+  Tracks which node is currently being expanded. Prevents multiple simultaneous expansions.
+</ParamField>
+
+## Key Methods
+
+### handleExpand
+
+Handles node expansion when a node is clicked.
+
+```typescript
+const handleExpand = async (id: string, label: string) => {
+  if (loadingNodeId) return;
+  setLoadingNodeId(id);
+  try {
+    const sub = await generateSubInterests(label);
+    addNodes(sub, id);
+  } catch (err) {
+    console.error(err);
+  } finally {
+    setLoadingNodeId(null);
+  }
+}
+```
+
+**Behavior:**
+1. Checks if another expansion is in progress (returns early if so)
+2. Sets loading state for the clicked node
+3. Calls `generateSubInterests` server action
+4. Adds returned sub-interests as child nodes
+5. Clears loading state on completion or error
+
+## Sub-components
+
+### PhysicsEngine
+
+Internal component that runs physics simulation on every frame. See [Physics Engine](#physics-engine) section below.
+
+### LinksRenderer
+
+Internal component that renders connections between nodes using THREE.LineSegments. See [Links Renderer](#links-renderer) section below.
+
+### NodeComponent
+
+External component documented separately in [NodeComponent API](/api/node-component).
+
+## Physics Engine
+
+```typescript
+function PhysicsEngine(): null
+```
+
+Runs on every frame via `useFrame` hook. Implements force-directed graph layout:
+
+**Constants:**
+- `k = 0.05` - Spring force strength
+- `damping = 0.8` - Velocity damping factor
+- `repulsion = 1.0` - Repulsion force magnitude
+- `centerAttract = 0.005` - Center attraction strength
+
+**Forces Applied:**
+
+1. **Repulsion** - All nodes repel each other (inverse square law)
+2. **Center Attraction** - Gentle pull toward origin to prevent drift
+3. **Spring Forces** - Connected nodes attract toward ideal distance (3.5 units)
+4. **Damping** - Velocity reduced by 80% each frame
+
+**Algorithm:**
+```typescript
+// For each node:
+// 1. Calculate repulsion from all other nodes
+for (let i = 0; i < nodes.length; i++) {
+  for (let j = 0; j < nodes.length; j++) {
+    // Apply inverse square repulsion
+  }
+}
+
+// 2. Calculate spring forces for linked nodes
+links.forEach(link => {
+  // Pull connected nodes toward ideal distance
+});
+
+// 3. Apply velocities with damping
+nodes.forEach(n => {
+  n.vx *= damping;
+  n.x += n.vx;
+  // ... for y and z
+});
+```
+
+## Links Renderer
+
+```typescript
+function LinksRenderer(): JSX.Element
+```
+
+Renders all connections between nodes as white semi-transparent lines.
+
+**Implementation:**
+- Uses THREE.LineSegments for efficient rendering
+- Updates geometry positions every frame
+- Creates Float32Array with 6 values per link (x,y,z for source and target)
+- Line style: white color, 20% opacity, transparent, no depth write
+
+**Performance:**
+- Uses BufferGeometry with dynamic attribute updates
+- Node lookup optimized with Map for O(1) access
+
+## Loading Indicator
+
+When a node is being expanded, a loading animation appears above it:
+
+```jsx
+<Html position={[node.x, node.y + node.radius + 0.5, node.z]} center>
+  <div className="flex space-x-1 items-center bg-black/50 px-2 py-1 rounded-full backdrop-blur-md">
+    <div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+    <div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+    <div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+  </div>
+</Html>
+```
+
+**Features:**
+- Positioned above the expanding node
+- Three bouncing dots with staggered animation
+- Semi-transparent black background with backdrop blur
+
+## Usage Example
+
+```typescript
+import { Canvas } from '@react-three/fiber';
+import ThreeGraph from '@/components/ThreeGraph';
+import { TrackballControls } from '@react-three/drei';
+
+export default function App() {
+  return (
+    <Canvas camera={{ position: [0, 0, 15], fov: 60 }}>
+      <ambientLight intensity={0.5} />
+      <pointLight position={[10, 10, 10]} />
+      <ThreeGraph />
+      <TrackballControls />
+    </Canvas>
+  );
+}
+```
+
+## Error Handling
+
+- Network errors during expansion are caught and logged
+- Loading state is cleared even on error
+- Falls back to mock data via `generateSubInterests`
+- UI remains interactive after errors
+
+## Performance Considerations
+
+- Physics runs every frame (60 FPS)
+- Line positions updated every frame
+- All nodes re-render when store updates
+- Consider memoization for large graphs (100+ nodes)
+
+## Dependencies
+
+- `@react-three/fiber` - React renderer for Three.js
+- `@react-three/drei` - Helper components (Text, Html, TrackballControls)
+- `three` - 3D graphics library
+- `zustand` - State management via `useInterestStore`
+
+## Source Code Location
+
+`components/ThreeGraph.tsx:198-245`

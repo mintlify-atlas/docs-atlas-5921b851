@@ -1,0 +1,239 @@
+---
+title: 'NodeComponent'
+description: 'Interactive 3D sphere representing an interest node'
+---
+
+## Overview
+
+The `NodeComponent` renders an individual interest as an interactive 3D sphere with a text label. It handles hover effects, click interactions, and maintains billboard text orientation.
+
+## Component Signature
+
+```typescript
+function NodeComponent({
+  node,
+  onExpand
+}: {
+  node: InterestNode;
+  onExpand: (nodeId: string, label: string) => void;
+}): JSX.Element
+```
+
+## Props
+
+<ParamField path="node" type="InterestNode" required>
+  The interest node data to render. Contains position, color, radius, label, and ID.
+  
+  ```typescript
+  interface InterestNode {
+    id: string;
+    label: string;
+    parentId: string | null;
+    x: number;
+    y: number;
+    z: number;
+    vx: number;
+    vy: number;
+    vz: number;
+    color: string;
+    radius: number;
+  }
+  ```
+</ParamField>
+
+<ParamField path="onExpand" type="(nodeId: string, label: string) => void" required>
+  Callback function triggered when the node is clicked. Receives the node's ID and label for expansion.
+</ParamField>
+
+## Visual Structure
+
+### Sphere Mesh
+
+- **Geometry**: Sphere with 32 segments (smooth)
+- **Material**: Standard material with no metalness, full roughness (matte finish)
+- **Color**: Node's color from store (random from palette)
+- **Hover**: Changes to white (#ffffff) on pointer over
+- **Radius**: 1.2 for root nodes, 0.6 for child nodes
+
+### Text Label
+
+- **Position**: Below sphere (y - radius - 0.5)
+- **Orientation**: Billboard effect (always faces camera)
+- **Style**: White color with black outline (0.02 width)
+- **Size**: 0.4 units
+- **Anchor**: Center aligned
+
+## Internal State
+
+<ParamField path="hovered" type="boolean" default="false">
+  Tracks whether the node is currently being hovered over by the mouse pointer.
+</ParamField>
+
+## Refs
+
+<ParamField path="meshRef" type="React.RefObject<THREE.Mesh>">
+  Reference to the sphere mesh for direct position updates in useFrame
+</ParamField>
+
+<ParamField path="textRef" type="React.RefObject<THREE.Group>">
+  Reference to the text group for position and rotation updates (billboard effect)
+</ParamField>
+
+## Frame Updates
+
+The component uses `useFrame` to update positions every frame:
+
+```typescript
+useFrame(() => {
+  // Update mesh position from node data
+  if (meshRef.current) {
+    meshRef.current.position.set(node.x, node.y, node.z);
+  }
+  
+  // Update text position and billboard rotation
+  if (textRef.current && meshRef.current) {
+    textRef.current.position.set(
+      node.x, 
+      node.y - node.radius - 0.5, 
+      node.z
+    );
+    textRef.current.quaternion.copy(camera.quaternion);
+  }
+});
+```
+
+**Why every frame?**
+- Node positions are updated by physics engine
+- Text must maintain billboard orientation as camera moves
+- Ensures smooth animations and interactions
+
+## Interaction Handlers
+
+### onClick
+
+```typescript
+onClick={(e) => {
+  e.stopPropagation();
+  onExpand(node.id, node.label);
+}}
+```
+
+- Stops event propagation to prevent triggering parent handlers
+- Calls `onExpand` callback with node ID and label
+- Triggers AI generation for sub-interests
+
+### onPointerOver / onPointerOut
+
+```typescript
+onPointerOver={() => setHovered(true)}
+onPointerOut={() => setHovered(false)}
+```
+
+- Updates hover state for visual feedback
+- Changes sphere color to white when hovered
+- Provides clear indication of interactivity
+
+## Material Properties
+
+```typescript
+<meshStandardMaterial
+  color={hovered ? "#ffffff" : node.color}
+  roughness={1}
+  metalness={0}
+/>
+```
+
+<ParamField path="color" type="string">
+  Dynamic color based on hover state. White when hovered, otherwise node's assigned color.
+</ParamField>
+
+<ParamField path="roughness" type="number" default="1">
+  Full roughness creates a matte, non-reflective surface.
+</ParamField>
+
+<ParamField path="metalness" type="number" default="0">
+  No metallic properties for a soft, organic look.
+</ParamField>
+
+## Text Rendering
+
+The text uses `@react-three/drei`'s Text component:
+
+```typescript
+<Text
+  fontSize={0.4}
+  color="#ffffff"
+  anchorX="center"
+  anchorY="middle"
+  outlineWidth={0.02}
+  outlineColor="#000000"
+  renderOrder={1}
+>
+  {node.label}
+</Text>
+```
+
+**Properties:**
+- **fontSize**: 0.4 units for readable labels
+- **color**: White for high contrast
+- **anchor**: Center alignment ensures text is centered below sphere
+- **outline**: Black outline improves readability against varying backgrounds
+- **renderOrder**: 1 to ensure text renders on top
+
+## Usage Example
+
+```typescript
+import { NodeComponent } from '@/components/ThreeGraph';
+import { InterestNode } from '@/store/useInterestStore';
+
+function CustomGraph() {
+  const node: InterestNode = {
+    id: 'abc123',
+    label: 'Machine Learning',
+    parentId: null,
+    x: 0,
+    y: 0,
+    z: 0,
+    vx: 0,
+    vy: 0,
+    vz: 0,
+    color: '#4ade80',
+    radius: 1.2
+  };
+  
+  const handleExpand = (id: string, label: string) => {
+    console.log(`Expanding ${label} (${id})`);
+    // Trigger sub-interest generation
+  };
+  
+  return (
+    <NodeComponent
+      node={node}
+      onExpand={handleExpand}
+    />
+  );
+}
+```
+
+## Performance Considerations
+
+- Each node updates position every frame (necessary for physics)
+- Text billboard rotation updates every frame (necessary for camera tracking)
+- Hover state updates trigger re-renders (minimal impact)
+- Consider LOD (Level of Detail) for very large graphs (100+ nodes)
+
+## Accessibility
+
+- Visual hover feedback (color change)
+- Click interactions clearly indicated by cursor change
+- Text labels provide context
+- Consider adding keyboard navigation for accessibility improvements
+
+## Related Components
+
+- [ThreeGraph](/api/three-graph) - Parent component that manages all nodes
+- [Interest Store](/api/interest-store) - State management for node data
+
+## Source Code Location
+
+`components/ThreeGraph.tsx:10-67`

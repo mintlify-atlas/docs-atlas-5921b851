@@ -1,0 +1,435 @@
+---
+title: State Management
+description: How Zustand manages nodes, links, and graph state in Intelligence Space
+---
+
+## Overview
+
+Intelligence Space uses [Zustand](https://github.com/pmndrs/zustand) for state management. Zustand provides a minimal, hook-based API that integrates seamlessly with React Three Fiber's rendering loop.
+
+## Why Zustand?
+
+<CardGroup cols={2}>
+  <Card title="Minimal Boilerplate" icon="code">
+    No providers, actions, or reducers required
+  </Card>
+  <Card title="Direct Mutations" icon="bolt">
+    Physics engine can mutate node positions directly
+  </Card>
+  <Card title="Selector Pattern" icon="filter">
+    Components only re-render on relevant state changes
+  </Card>
+  <Card title="Dev Tools" icon="bug">
+    Built-in Redux DevTools integration
+  </Card>
+</CardGroup>
+
+## Store Definition
+
+The complete store is defined in `src/store/useInterestStore.ts`:
+
+```typescript
+import { create } from 'zustand';
+
+export interface InterestNode {
+    id: string;
+    label: string;
+    parentId: string | null;
+    // Visual positions (updated by physics engine)
+    x: number;
+    y: number;
+    z: number;
+    // Velocity vectors for force simulation
+    vx: number;
+    vy: number;
+    vz: number;
+    // Visual properties
+    color: string;
+    radius: number;
+}
+
+export interface InterestLink {
+    source: string; // node id
+    target: string; // node id
+}
+
+interface InterestStore {
+    nodes: InterestNode[];
+    links: InterestLink[];
+    addNode: (label: string, parentId?: string | null) => InterestNode;
+    addNodes: (labels: string[], parentId: string) => void;
+    setNodes: (nodes: InterestNode[]) => void;
+    clear: () => void;
+}
+```
+
+## Data Structures
+
+### InterestNode
+
+Each node in the graph contains both visual and physics properties:
+
+<ParamField path="id" type="string" required>
+  Unique identifier generated via `Math.random().toString(36)`
+</ParamField>
+
+<ParamField path="label" type="string" required>
+  Display text for the node (e.g., "Quantum Physics")
+</ParamField>
+
+<ParamField path="parentId" type="string | null" required>
+  ID of parent node. `null` for root nodes.
+</ParamField>
+
+<ParamField path="x, y, z" type="number" required>
+  Current 3D position in world space. Updated by physics engine each frame.
+</ParamField>
+
+<ParamField path="vx, vy, vz" type="number" required>
+  Velocity vectors for physics simulation. Damped over time.
+</ParamField>
+
+<ParamField path="color" type="string" required>
+  Hex color for sphere material. Randomly selected from palette.
+</ParamField>
+
+<ParamField path="radius" type="number" required>
+  Sphere radius. Root nodes are `1.2`, children are `0.6`.
+</ParamField>
+
+### InterestLink
+
+Links represent parent-child relationships:
+
+<ParamField path="source" type="string" required>
+  ID of the parent node
+</ParamField>
+
+<ParamField path="target" type="string" required>
+  ID of the child node
+</ParamField>
+
+<Note>
+  Links are purely relational. Visual line positions are computed dynamically each frame from current node coordinates.
+</Note>
+
+## Store Implementation
+
+### Complete Store Code
+
+```typescript
+const colors = [
+    '#4ade80', // green-400
+    '#60a5fa', // blue-400
+    '#c084fc', // purple-400
+    '#f87171', // red-400
+    '#fbbf24', // amber-400
+    '#2dd4bf', // teal-400
+];
+
+export const useInterestStore = create<InterestStore>((set, get) => ({
+    nodes: [],
+    links: [],
+    
+    addNode: (label, parentId = null) => {
+        const id = Math.random().toString(36).substring(2, 9);
+
+        // Position logic - start close to parent if exists, otherwise near origin
+        let startX = (Math.random() - 0.5) * 2;
+        let startY = (Math.random() - 0.5) * 2;
+        let startZ = (Math.random() - 0.5) * 2;
+
+        if (parentId) {
+            const parentNode = get().nodes.find(n => n.id === parentId);
+            if (parentNode) {
+                // Spawn slightly offset from parent
+                startX = parentNode.x + (Math.random() - 0.5) * 0.5;
+                startY = parentNode.y + (Math.random() - 0.5) * 0.5;
+                startZ = parentNode.z + (Math.random() - 0.5) * 0.5;
+            }
+        }
+
+        const newNode: InterestNode = {
+            id,
+            label,
+            parentId,
+            x: startX,
+            y: startY,
+            z: startZ,
+            vx: 0,
+            vy: 0,
+            vz: 0,
+            color: colors[Math.floor(Math.random() * colors.length)],
+            radius: parentId ? 0.6 : 1.2, // Smaller size for children
+        };
+
+        set((state) => {
+            const newLinks = [...state.links];
+            if (parentId) {
+                newLinks.push({ source: parentId, target: id });
+            }
+            return {
+                nodes: [...state.nodes, newNode],
+                links: newLinks
+            };
+        });
+
+        return newNode;
+    },
+    
+    addNodes: (labels, parentId) => {
+        labels.forEach(label => get().addNode(label, parentId));
+    },
+    
+    setNodes: (nodes) => set({ nodes }),
+    
+    clear: () => set({ nodes: [], links: [] })
+}));
+```
+
+## Usage Patterns
+
+### Accessing State in React Components
+
+```typescript
+import { useInterestStore } from '@/store/useInterestStore';
+
+function MyComponent() {
+  // Subscribe to specific state slices
+  const nodes = useInterestStore((state) => state.nodes);
+  const addNode = useInterestStore((state) => state.addNode);
+  
+  // Or destructure multiple values
+  const { nodes, links, addNode } = useInterestStore();
+  
+  return <div>Node count: {nodes.length}</div>;
+}
+```
+
+### Adding Nodes from UI
+
+From `src/app/page.tsx`:
+
+```typescript
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  const label = input.trim();
+  
+  // Create the root node
+  const newNode = addNode(label);
+  
+  // Generate and add children via Server Action
+  const sub = await generateSubInterests(label);
+  useInterestStore.getState().addNodes(sub, newNode.id);
+};
+```
+
+### Expanding Nodes from ThreeGraph
+
+From `src/components/ThreeGraph.tsx`:
+
+```typescript
+const handleExpand = async (id: string, label: string) => {
+  if (loadingNodeId) return; // Prevent concurrent expansions
+  setLoadingNodeId(id);
+  
+  try {
+    const sub = await generateSubInterests(label);
+    addNodes(sub, id); // Adds children to clicked node
+  } catch (err) {
+    console.error(err);
+  } finally {
+    setLoadingNodeId(null);
+  }
+};
+```
+
+### Direct State Access (Outside React)
+
+The physics engine accesses state without subscriptions:
+
+```typescript
+function PhysicsEngine() {
+  const { nodes, links } = useInterestStore();
+
+  useFrame(() => {
+    // Direct mutation of node positions
+    nodes.forEach(n => {
+      n.x += n.vx;
+      n.y += n.vy;
+      n.z += n.vz;
+    });
+  });
+
+  return null;
+}
+```
+
+<Warning>
+  The physics engine **directly mutates** node positions and velocities. This is intentional for performance—React doesn't need to track these frame-by-frame changes since React Three Fiber reads from the same objects.
+</Warning>
+
+## State Update Flow
+
+### Creating a New Root Node
+
+<Steps>
+  <Step title="Generate ID">
+    `Math.random().toString(36).substring(2, 9)` creates unique ID
+  </Step>
+  <Step title="Calculate Initial Position">
+    Random position near origin: `(Math.random() - 0.5) * 2` for each axis
+  </Step>
+  <Step title="Select Color">
+    Randomly choose from 6-color palette
+  </Step>
+  <Step title="Set Radius">
+    Root nodes get `radius: 1.2`, children get `0.6`
+  </Step>
+  <Step title="Update Store">
+    Immutably append to `nodes` array. No link created for root nodes.
+  </Step>
+</Steps>
+
+### Adding Child Nodes
+
+<Steps>
+  <Step title="Find Parent">
+    `get().nodes.find(n => n.id === parentId)` retrieves parent node
+  </Step>
+  <Step title="Spawn Near Parent">
+    Position offset from parent by random `±0.25` in each axis
+  </Step>
+  <Step title="Create Link">
+    Add `{source: parentId, target: newId}` to links array
+  </Step>
+  <Step title="Update Store">
+    Immutably append to both `nodes` and `links` arrays
+  </Step>
+</Steps>
+
+## Performance Considerations
+
+### Direct Mutations for Physics
+
+The physics engine mutates node positions directly:
+
+```typescript
+// This does NOT trigger React re-renders
+nodes.forEach(n => {
+  n.x += n.vx;  // Direct mutation
+  n.y += n.vy;
+  n.z += n.vz;
+});
+```
+
+**Why this works:**
+- React Three Fiber reads positions via refs, not React state
+- Node positions update 60 times per second
+- Triggering React re-renders every frame would be prohibitively expensive
+- The same objects are shared between Zustand store and rendering components
+
+### Immutable Updates for Structure
+
+Structural changes (adding/removing nodes) use immutable updates:
+
+```typescript
+set((state) => ({
+  nodes: [...state.nodes, newNode],  // New array
+  links: [...state.links, newLink]   // New array
+}));
+```
+
+This ensures React components re-render when nodes are added/removed, but not during physics updates.
+
+## Selector Pattern
+
+Components can subscribe to specific state slices:
+
+```typescript
+// Only re-renders when nodes array changes
+const nodes = useInterestStore((state) => state.nodes);
+
+// Only re-renders when links array changes
+const links = useInterestStore((state) => state.links);
+
+// Never re-renders (action functions are stable)
+const addNode = useInterestStore((state) => state.addNode);
+```
+
+## Debugging
+
+### Inspecting Store State
+
+```typescript
+// In browser console
+useInterestStore.getState()
+// Returns: { nodes: [...], links: [...], addNode: fn, ... }
+
+// Subscribe to all changes
+useInterestStore.subscribe(console.log)
+```
+
+### Redux DevTools Integration
+
+Zustand supports Redux DevTools out of the box:
+
+```typescript
+import { devtools } from 'zustand/middleware';
+
+export const useInterestStore = create<InterestStore>()(  
+  devtools(
+    (set, get) => ({
+      // ... store implementation
+    }),
+    { name: 'InterestStore' }
+  )
+);
+```
+
+## Type Safety
+
+Zustand provides full TypeScript support:
+
+```typescript
+interface InterestStore {
+  nodes: InterestNode[];  // Typed state
+  links: InterestLink[];
+  addNode: (label: string, parentId?: string | null) => InterestNode;  // Typed actions
+  addNodes: (labels: string[], parentId: string) => void;
+  setNodes: (nodes: InterestNode[]) => void;
+  clear: () => void;
+}
+
+// TypeScript enforces correct usage
+const store = create<InterestStore>((set, get) => ({...}));
+```
+
+## Comparison with Other Solutions
+
+<AccordionGroup>
+  <Accordion title="vs Redux">
+    - No boilerplate (actions, reducers, providers)
+    - Direct mutations allowed for performance-critical code
+    - Smaller bundle size (~1KB vs ~10KB)
+    - Simpler mental model for small apps
+  </Accordion>
+  
+  <Accordion title="vs Context API">
+    - No provider nesting
+    - Better performance (selector pattern prevents unnecessary re-renders)
+    - Can access outside React (e.g., in physics simulation)
+    - Built-in DevTools support
+  </Accordion>
+  
+  <Accordion title="vs Jotai/Recoil">
+    - Simpler API (no atoms/selectors)
+    - Works perfectly with direct mutations for physics
+    - Single store instead of atomic state
+    - Better for graph-like data structures
+  </Accordion>
+</AccordionGroup>
+
+<Note>
+  Zustand's ability to support both immutable updates (for structural changes) and direct mutations (for physics) makes it ideal for real-time 3D applications.
+</Note>

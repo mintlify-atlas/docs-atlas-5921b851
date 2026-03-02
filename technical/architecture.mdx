@@ -1,0 +1,322 @@
+---
+title: System Architecture
+description: Understanding Intelligence Space's technical architecture and technology stack
+---
+
+## Overview
+
+Intelligence Space is built on a modern web stack designed for real-time 3D visualization and AI-powered content generation. The architecture separates concerns between server-side AI processing and client-side WebGL rendering.
+
+## Technology Stack
+
+<CardGroup cols={2}>
+  <Card title="Next.js 14 App Router" icon="react">
+    Server and client components with React Server Actions
+  </Card>
+  <Card title="React Three Fiber" icon="cube">
+    Declarative 3D rendering with Three.js
+  </Card>
+  <Card title="Zustand" icon="database">
+    Lightweight state management for nodes and links
+  </Card>
+  <Card title="Google Gemini AI" icon="sparkles">
+    AI-powered interest expansion via Server Actions
+  </Card>
+</CardGroup>
+
+## Application Structure
+
+### Next.js App Router
+
+The application uses Next.js 14's App Router with a clear separation between server and client logic:
+
+```typescript
+// src/app/layout.tsx - Root layout with font configuration
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="en">
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        {children}
+      </body>
+    </html>
+  );
+}
+```
+
+### Client-Side Page Component
+
+The main page (`src/app/page.tsx`) is a client component that orchestrates the UI:
+
+```typescript
+"use client";
+
+import { Canvas } from '@react-three/fiber';
+import ThreeGraph from '@/components/ThreeGraph';
+import { useInterestStore } from '@/store/useInterestStore';
+
+export default function Home() {
+  const [input, setInput] = useState("");
+  const { addNode, nodes } = useInterestStore();
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() || isGenerating) return;
+
+    const label = input.trim();
+    setInput("");
+
+    // Create the root node first
+    const newNode = addNode(label);
+
+    // Automatically trigger expansion via Server Action
+    try {
+      setIsGenerating(true);
+      const { generateSubInterests } = await import('@/app/actions');
+      const sub = await generateSubInterests(label);
+      useInterestStore.getState().addNodes(sub, newNode.id);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  return (
+    <main className="relative w-full h-screen">
+      <Canvas camera={{ position: [0, 0, 15], fov: 60 }}>
+        <ThreeGraph />
+        <OrbitControls />
+      </Canvas>
+      {/* UI overlays */}
+    </main>
+  );
+}
+```
+
+**Key architectural patterns:**
+- Client component handles all UI interactions
+- WebGL Canvas runs in a separate layer
+- Server Actions imported dynamically for AI generation
+- State updates trigger re-renders across React Three Fiber
+
+### Server Actions Layer
+
+AI integration is handled via Next.js Server Actions (`src/app/actions.ts`):
+
+```typescript
+"use server";
+
+import { GoogleGenAI } from '@google/genai';
+
+const ai = new GoogleGenAI({});
+
+export async function generateSubInterests(interest: string) {
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: `Given an interest, provide 3 to 5 highly relevant sub-interests.
+      Only provide a JSON array of strings as the response.
+      Interest: ${interest}`,
+    });
+    
+    const text = response.text;
+    const cleanText = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+    const array = JSON.parse(cleanText);
+    
+    return array.slice(0, 5);
+  } catch (error) {
+    console.error("Gemini API error:", error);
+    // Fallback mock data
+    return [
+      `${interest} Essentials`,
+      `Advanced ${interest}`,
+      `${interest} Tools`,
+    ];
+  }
+}
+```
+
+**Server Action benefits:**
+- API keys never exposed to client
+- Automatic request deduplication
+- Built-in error handling and retries
+- Type-safe communication between client/server
+
+## WebGL Rendering Layer
+
+### React Three Fiber Canvas
+
+The 3D scene is created using React Three Fiber's declarative API:
+
+```typescript
+<Canvas camera={{ position: [0, 0, 15], fov: 60 }}>
+  <color attach="background" args={['#050505']} />
+  <ambientLight intensity={0.5} />
+  <pointLight position={[10, 10, 10]} intensity={1} />
+
+  <Float speed={1} rotationIntensity={0.2}>
+    <ThreeGraph />
+  </Float>
+
+  <OrbitControls
+    enablePan={false}
+    enableZoom={true}
+    minDistance={2}
+    maxDistance={50}
+    autoRotate
+    autoRotateSpeed={0.5}
+  />
+  <Stars radius={100} depth={50} count={5000} />
+  <Environment preset="city" />
+</Canvas>
+```
+
+**Rendering architecture:**
+- Canvas creates isolated WebGL context
+- Float component adds gentle animation to entire graph
+- OrbitControls enables camera manipulation
+- ThreeGraph handles all node/link rendering
+
+### Component Hierarchy
+
+```
+Home (Client Component)
+├── Canvas (R3F)
+│   ├── ThreeGraph
+│   │   ├── PhysicsEngine (useFrame hook)
+│   │   ├── LinksRenderer (dynamic line geometry)
+│   │   └── NodeComponent[] (spheres + text)
+│   ├── OrbitControls
+│   └── Scene lights/environment
+└── UI Overlays (HTML)
+    ├── Header
+    └── Input form
+```
+
+## Data Flow
+
+### Creating a New Interest Map
+
+<Steps>
+  <Step title="User Input">
+    User types an interest and submits form in `page.tsx`
+  </Step>
+  <Step title="Local Node Creation">
+    `addNode()` creates node in Zustand store with initial position
+  </Step>
+  <Step title="Server Action Call">
+    `generateSubInterests()` Server Action called with interest label
+  </Step>
+  <Step title="AI Processing">
+    Gemini AI generates 3-5 related sub-interests on server
+  </Step>
+  <Step title="Batch Node Creation">
+    `addNodes()` creates child nodes and links in Zustand store
+  </Step>
+  <Step title="Physics Simulation">
+    Physics engine positions nodes using force-directed algorithm
+  </Step>
+  <Step title="WebGL Rendering">
+    React Three Fiber renders updated scene at 60fps
+  </Step>
+</Steps>
+
+### Expansion Flow Diagram
+
+```
+┌─────────────┐
+│ User clicks │
+│    node     │
+└──────┬──────┘
+       │
+       ▼
+┌─────────────────┐
+│  handleExpand() │
+│   in ThreeGraph │
+└──────┬──────────┘
+       │
+       ▼
+┌──────────────────────┐
+│ generateSubInterests │ ◄── Server Action
+│   (Server-side)      │
+└──────┬───────────────┘
+       │
+       ▼
+┌─────────────────┐
+│ addNodes() adds │
+│ to Zustand store│
+└──────┬──────────┘
+       │
+       ▼
+┌─────────────────┐
+│ Physics engine  │
+│ repositions all │
+└──────┬──────────┘
+       │
+       ▼
+┌─────────────────┐
+│  Nodes render   │
+│  at new coords  │
+└─────────────────┘
+```
+
+## State Management Architecture
+
+See [State Management](/technical/state-management) for detailed information on Zustand store implementation.
+
+## Physics Simulation
+
+See [Physics Engine](/technical/physics-engine) for detailed information on the force-directed graph algorithm.
+
+## Performance Characteristics
+
+<AccordionGroup>
+  <Accordion title="Rendering Performance">
+    - React Three Fiber runs at 60fps via `useFrame` hook
+    - Geometry updates use `BufferAttribute.needsUpdate` flag
+    - Billboard text always faces camera using quaternion copy
+    - Physics calculations run every frame but are O(n²) optimized
+  </Accordion>
+  
+  <Accordion title="State Updates">
+    - Zustand provides O(1) state updates
+    - No unnecessary re-renders due to selector pattern
+    - Physics directly mutates node positions (not React state)
+    - Links recalculated each frame from current positions
+  </Accordion>
+  
+  <Accordion title="Network Optimization">
+    - Server Actions automatically batched by Next.js
+    - AI responses cached on server side
+    - Client-side loading states prevent duplicate requests
+    - Fallback mock data ensures graceful degradation
+  </Accordion>
+</AccordionGroup>
+
+## Environment Configuration
+
+<ParamField path="GEMINI_API_KEY" type="string" required>
+  Google Gemini API key for AI-powered interest generation. If not set, the application falls back to mock data.
+</ParamField>
+
+```bash
+# .env.local
+GEMINI_API_KEY=your_api_key_here
+```
+
+## Build Output
+
+Next.js produces optimized bundles:
+- **Server Components**: RSC payload for initial HTML
+- **Client Components**: Hydrated JavaScript bundles
+- **Server Actions**: Serverless function endpoints
+- **Static Assets**: Optimized CSS, fonts, and public files
+
+<Note>
+  The WebGL canvas and physics simulation run entirely client-side, while AI generation is server-side only. This hybrid architecture provides both rich interactivity and secure API access.
+</Note>

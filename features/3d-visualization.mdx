@@ -1,0 +1,197 @@
+---
+title: '3D Visualization'
+description: 'Explore how Intelligence Space renders your knowledge graph in immersive 3D space'
+---
+
+## Overview
+
+Intelligence Space transforms your interests into a living, breathing 3D knowledge graph. Built on WebGL and React Three Fiber, each interest appears as a glowing sphere floating in space, connected by elegant lines that show relationships between concepts.
+
+<Note>
+  The visualization uses **force-directed physics** to automatically arrange nodes, creating an organic layout that evolves as you explore.
+</Note>
+
+## Rendering Technology
+
+<Tabs>
+  <Tab title="WebGL Engine">
+    Intelligence Space uses React Three Fiber, a React renderer for Three.js, to deliver high-performance 3D graphics directly in your browser.
+
+    ```tsx
+    <Canvas camera={{ position: [0, 0, 15], fov: 60 }}>
+      <color attach="background" args={['#050505']} />
+      <ambientLight intensity={0.5} />
+      <pointLight position={[10, 10, 10]} intensity={1} />
+      
+      <ThreeGraph />
+      <OrbitControls />
+      <Stars radius={100} depth={50} count={5000} />
+    </Canvas>
+    ```
+
+    The scene uses a **dark background** (#050505) with 5,000 stars to create a cosmic exploration feeling.
+  </Tab>
+  
+  <Tab title="Node Rendering">
+    Each interest node is rendered as a 3D sphere with dynamic properties:
+
+    ```tsx
+    <sphereGeometry args={[node.radius, 32, 32]} />
+    <meshStandardMaterial
+        color={hovered ? "#ffffff" : node.color}
+        roughness={1}
+        metalness={0}
+    />
+    ```
+
+    **Visual Features:**
+    - **32×32 segment spheres** for smooth geometry
+    - **Dynamic coloring** - nodes turn white on hover
+    - **Non-metallic material** (roughness: 1, metalness: 0) for a soft, matte appearance
+    - **Billboard text labels** that always face the camera
+  </Tab>
+  
+  <Tab title="Connection Lines">
+    Relationships between interests are visualized as translucent white lines:
+
+    ```tsx
+    <lineBasicMaterial 
+      color="#ffffff" 
+      opacity={0.2} 
+      transparent 
+      depthWrite={false} 
+    />
+    ```
+
+    Lines are rendered using BufferGeometry for optimal performance, with positions updated every frame as the physics simulation runs.
+  </Tab>
+</Tabs>
+
+## Physics Simulation
+
+The graph uses a **real-time force-directed layout** that runs at 60 FPS to create natural spacing and movement.
+
+<Accordion title="How the Physics Works">
+  The simulation applies three forces to each node:
+
+  ### Repulsion Force
+  Nodes push away from each other to prevent overlap:
+  ```tsx
+  const repulsion = 1.0;
+  const f = repulsion / distSq;
+  fx += (dx / dist) * f;
+  ```
+
+  ### Spring Force
+  Connected nodes are pulled together by invisible springs:
+  ```tsx
+  const k = 0.05; // spring strength
+  const diff = dist - 3.5; // ideal length
+  const f = diff * k;
+  ```
+
+  ### Center Attraction
+  Nodes are gently pulled toward the origin to keep the graph centered:
+  ```tsx
+  const centerAttract = 0.005;
+  fx = -n1.x * centerAttract;
+  ```
+
+  All forces are combined with **damping** (0.8) to gradually slow movement and reach equilibrium.
+</Accordion>
+
+## Visual Design
+
+### Glassmorphism Aesthetic
+
+The UI overlay uses a modern glassmorphism design that floats above the 3D scene:
+
+- **Frosted glass effect** - `backdrop-blur-xl` with `bg-white/5`
+- **Subtle borders** - `border-white/10` for depth
+- **Shadow layering** - `shadow-2xl` for elevation
+
+### Text Rendering
+
+Node labels use the `@react-three/drei` Text component with glow effects:
+
+```tsx
+<Text
+    fontSize={0.4}
+    color="#ffffff"
+    anchorX="center"
+    anchorY="middle"
+    outlineWidth={0.02}
+    outlineColor="#000000"
+/>
+```
+
+<Tip>
+  Text labels are **billboarded** - they automatically rotate to face the camera using `textRef.current.quaternion.copy(camera.quaternion)` (src/components/ThreeGraph.tsx:28)
+</Tip>
+
+## Camera & Lighting
+
+### Camera Setup
+- **Position:** 15 units back on the Z-axis
+- **Field of View:** 60 degrees for a natural perspective
+- **Controllable:** Orbit, zoom, and pan enabled
+
+### Lighting
+<CardGroup cols={2}>
+  <Card title="Ambient Light" icon="lightbulb">
+    Intensity: 0.5 - provides soft base illumination across the entire scene
+  </Card>
+  <Card title="Point Light" icon="sun">
+    Position: [10, 10, 10] - creates dimensional shadows and highlights
+  </Card>
+</CardGroup>
+
+### Environment
+The scene uses the "city" preset from `@react-three/drei` for realistic reflections and ambient lighting.
+
+## Performance Optimization
+
+<Steps>
+  <Step title="BufferGeometry for Lines">
+    Lines use Three.js BufferGeometry instead of individual line objects, reducing draw calls significantly when hundreds of connections exist.
+  </Step>
+  <Step title="Efficient Position Updates">
+    Node positions are updated using `useFrame` hook with direct mutation instead of React state, avoiding unnecessary re-renders.
+  </Step>
+  <Step title="Speed Limiting">
+    The physics engine stops nodes that move slower than 0.001 units/frame to prevent unnecessary calculations:
+    ```tsx
+    if (speed < 0.001) {
+        n.vx = 0; n.vy = 0; n.vz = 0;
+    }
+    ```
+  </Step>
+</Steps>
+
+## Loading States
+
+When a node is expanding, an animated loading indicator appears above it:
+
+```tsx
+<div className="flex space-x-1 items-center bg-black/50 px-2 py-1 rounded-full backdrop-blur-md">
+  <div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" 
+       style={{ animationDelay: "0ms" }}></div>
+  <div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" 
+       style={{ animationDelay: "150ms" }}></div>
+  <div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" 
+       style={{ animationDelay: "300ms" }}></div>
+</div>
+```
+
+Three white dots bounce in sequence above the node being expanded, with staggered animation delays for a wave effect.
+
+---
+
+<CardGroup cols={2}>
+  <Card title="AI Expansion" icon="sparkles" href="/features/ai-expansion">
+    Learn how Gemini AI generates related interests
+  </Card>
+  <Card title="Interactive Navigation" icon="hand-pointer" href="/features/interactive-navigation">
+    Discover how to navigate and explore your graph
+  </Card>
+</CardGroup>

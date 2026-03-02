@@ -1,0 +1,201 @@
+---
+title: 'Interest Store'
+description: 'Zustand store for managing interest nodes and graph state'
+---
+
+## Overview
+
+The Interest Store is a Zustand-based state management solution that handles the 3D graph structure of interests and sub-interests. It manages nodes, links, and provides methods for adding and manipulating the graph.
+
+## Store Interface
+
+```typescript
+interface InterestStore {
+  nodes: InterestNode[];
+  links: InterestLink[];
+  addNode: (label: string, parentId?: string | null) => InterestNode;
+  addNodes: (labels: string[], parentId: string) => void;
+  setNodes: (nodes: InterestNode[]) => void;
+  clear: () => void;
+}
+```
+
+## Data Structures
+
+### InterestNode
+
+```typescript
+export interface InterestNode {
+  id: string;              // Unique identifier
+  label: string;           // Display text
+  parentId: string | null; // Parent node ID, null for root
+  x: number;               // X position in 3D space
+  y: number;               // Y position in 3D space
+  z: number;               // Z position in 3D space
+  vx: number;              // X velocity for physics
+  vy: number;              // Y velocity for physics
+  vz: number;              // Z velocity for physics
+  color: string;           // Hex color code
+  radius: number;          // Sphere radius (1.2 for root, 0.6 for children)
+}
+```
+
+### InterestLink
+
+```typescript
+export interface InterestLink {
+  source: string; // Source node ID
+  target: string; // Target node ID
+}
+```
+
+## Store Methods
+
+### addNode
+
+Adds a single node to the graph with automatic positioning and styling.
+
+<ParamField path="label" type="string" required>
+  The text label for the node
+</ParamField>
+
+<ParamField path="parentId" type="string | null" default="null">
+  The ID of the parent node. If provided, creates a link and positions near parent. If null, positions near origin.
+</ParamField>
+
+<ResponseField name="node" type="InterestNode">
+  The newly created node object with generated ID and calculated position
+</ResponseField>
+
+**Behavior:**
+- Generates a random 7-character ID
+- Assigns a random color from the predefined palette
+- Sets radius to 1.2 for root nodes (no parent), 0.6 for child nodes
+- Positions node near parent (±0.25 units offset) or near origin (±1 unit)
+- Automatically creates a link if parentId is provided
+- Initializes velocity to zero
+
+### addNodes
+
+Batch adds multiple nodes as children of a parent.
+
+<ParamField path="labels" type="string[]" required>
+  Array of label strings for the new nodes
+</ParamField>
+
+<ParamField path="parentId" type="string" required>
+  The ID of the parent node that all new nodes will connect to
+</ParamField>
+
+**Behavior:**
+- Iterates through labels and calls `addNode` for each
+- All nodes share the same parent
+- Used when expanding a node with AI-generated sub-interests
+
+### setNodes
+
+Replaces the entire nodes array with a new set.
+
+<ParamField path="nodes" type="InterestNode[]" required>
+  The new array of nodes to set
+</ParamField>
+
+**Behavior:**
+- Overwrites existing nodes completely
+- Does not affect links (be careful of orphaned links)
+- Useful for loading saved state or resetting to a specific configuration
+
+### clear
+
+Resets the store to empty state.
+
+**Behavior:**
+- Clears all nodes
+- Clears all links
+- Returns graph to initial empty state
+
+## Color Palette
+
+Nodes are randomly assigned colors from this predefined palette:
+
+```typescript
+const colors = [
+  '#4ade80', // green-400
+  '#60a5fa', // blue-400
+  '#c084fc', // purple-400
+  '#f87171', // red-400
+  '#fbbf24', // amber-400
+  '#2dd4bf', // teal-400
+];
+```
+
+## Usage Examples
+
+### Creating a Root Node
+
+```typescript
+import { useInterestStore } from '@/store/useInterestStore';
+
+function App() {
+  const addNode = useInterestStore(state => state.addNode);
+  
+  const handleCreate = () => {
+    const rootNode = addNode('Machine Learning');
+    // rootNode.radius === 1.2 (root size)
+    // rootNode.parentId === null
+  };
+}
+```
+
+### Expanding a Node
+
+```typescript
+function expandNode(nodeId: string, subTopics: string[]) {
+  const addNodes = useInterestStore(state => state.addNodes);
+  
+  addNodes(subTopics, nodeId);
+  // Creates multiple child nodes and links them to nodeId
+}
+```
+
+### Accessing Graph Data
+
+```typescript
+function GraphViewer() {
+  const { nodes, links } = useInterestStore();
+  
+  return (
+    <div>
+      <p>Total nodes: {nodes.length}</p>
+      <p>Total connections: {links.length}</p>
+    </div>
+  );
+}
+```
+
+### Resetting the Graph
+
+```typescript
+function ResetButton() {
+  const clear = useInterestStore(state => state.clear);
+  
+  return (
+    <button onClick={clear}>
+      Clear Graph
+    </button>
+  );
+}
+```
+
+## Position and Physics
+
+The store initializes node positions but does not handle physics simulation. The `PhysicsEngine` component in `ThreeGraph.tsx` modifies node positions and velocities on each frame:
+
+- **Spring forces** pull connected nodes toward ideal distance (3.5 units)
+- **Repulsion forces** push all nodes apart
+- **Center attraction** gently pulls nodes toward origin
+- **Damping** gradually reduces velocity
+
+## Source Code Location
+
+`store/useInterestStore.ts:1-96`

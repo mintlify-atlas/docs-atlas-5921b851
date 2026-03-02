@@ -1,0 +1,384 @@
+---
+title: 'Interactive Navigation'
+description: 'Master the controls and interactions that bring your knowledge graph to life'
+---
+
+## Overview
+
+Intelligence Space is designed for **intuitive, tactile exploration**. Every interaction - from clicking nodes to rotating the camera - feels natural and responsive. The 3D environment combines mouse controls, hover effects, and smooth animations to create an engaging discovery experience.
+
+<Note>
+  All interactions work seamlessly on desktop browsers. Mobile support uses touch gestures for orbit and zoom.
+</Note>
+
+## Search Input
+
+### Starting Your Journey
+
+The glassmorphic search bar at the bottom of the screen is your entry point:
+
+```tsx
+<input
+  type="text"
+  placeholder="Enter an interest (e.g. Quantum Physics, Minimalist Art)..."
+  className="w-full bg-transparent border-none py-4 pl-12 pr-12 text-white placeholder:text-white/40"
+/>
+```
+
+<Tabs>
+  <Tab title="Visual Design">
+    The input features:
+    - **Frosted glass background** - `bg-white/5 backdrop-blur-xl`
+    - **Search icon** - Left-aligned magnifying glass
+    - **Sparkles button** - Right-aligned submit trigger
+    - **Subtle border** - `border-white/10` for depth
+    - **2xl rounded corners** for modern aesthetics
+  </Tab>
+  
+  <Tab title="Interactive States">
+    **Default State:**
+    - Semi-transparent white text
+    - Placeholder shows example interests
+    - Submit button shows sparkles icon
+    
+    **Generating State:**
+    - Input becomes disabled (`disabled:opacity-50`)
+    - Submit button shows spinning loader
+    - User cannot type or submit until complete
+    
+    **Empty State:**
+    - Helper text appears above: "Start typing to generate an intelligence map"
+    - Fades in with Framer Motion animation
+  </Tab>
+</Tabs>
+
+### Submit Behavior
+
+<Steps>
+  <Step title="Type Your Interest">
+    Enter any topic, concept, or interest in the search bar.
+  </Step>
+  
+  <Step title="Click Sparkles or Press Enter">
+    Submit using the sparkles button or keyboard Enter key.
+  </Step>
+  
+  <Step title="Root Node Appears">
+    Your interest materializes as a glowing sphere in the center of the space.
+  </Step>
+  
+  <Step title="Automatic Expansion">
+    AI immediately generates 3-5 related concepts that spring into existence around the root node.
+  </Step>
+</Steps>
+
+```tsx
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!input.trim() || isGenerating) return;
+  
+  const label = input.trim();
+  setInput(""); // Clear input immediately
+  
+  const newNode = addNode(label);
+  // Trigger automatic expansion...
+};
+```
+
+<Tip>
+  The input clears **immediately** after submission, allowing you to quickly enter another interest while the first is generating.
+</Tip>
+
+## Node Interaction
+
+### Click to Expand
+
+Clicking any sphere triggers **AI-powered expansion**:
+
+```tsx
+<mesh
+  onClick={(e) => {
+    e.stopPropagation();
+    onExpand(node.id, node.label);
+  }}
+>
+  <sphereGeometry args={[node.radius, 32, 32]} />
+  <meshStandardMaterial color={node.color} />
+</mesh>
+```
+
+<Accordion title="What Happens When You Click">
+  1. **Event Propagation Stops** - `e.stopPropagation()` prevents camera controls from interfering
+  2. **Loading Indicator Appears** - Three bouncing dots float above the node
+  3. **AI Generation** - Gemini creates 3-5 related sub-interests
+  4. **New Nodes Spawn** - Child spheres appear connected to the parent
+  5. **Physics Simulation** - New nodes spring into position using force-directed layout
+  6. **Loading Indicator Disappears** - Expansion complete
+</Accordion>
+
+### Hover Effects
+
+Nodes provide **instant visual feedback** on hover:
+
+```tsx
+const [hovered, setHovered] = useState(false);
+
+<mesh
+  onPointerOver={() => setHovered(true)}
+  onPointerOut={() => setHovered(false)}
+>
+  <meshStandardMaterial
+    color={hovered ? "#ffffff" : node.color}
+  />
+</mesh>
+```
+
+<CardGroup cols={2}>
+  <Card title="Default State">
+    Node appears in its assigned color (varies per node)
+  </Card>
+  <Card title="Hover State">
+    Node turns pure white (#ffffff) - instant visual confirmation
+  </Card>
+</CardGroup>
+
+## Camera Controls
+
+### Orbit Controls
+
+The camera uses `@react-three/drei` OrbitControls for smooth, professional navigation:
+
+```tsx
+<OrbitControls
+  enablePan={false}
+  enableZoom={true}
+  minDistance={2}
+  maxDistance={50}
+  autoRotate
+  autoRotateSpeed={0.5}
+/>
+```
+
+<Tabs>
+  <Tab title="Mouse Controls">
+    <Steps>
+      <Step title="Left Click + Drag">
+        **Orbit** - Rotate the camera around the graph center. The view smoothly follows your mouse movement.
+      </Step>
+      
+      <Step title="Scroll Wheel">
+        **Zoom** - Move closer (min: 2 units) or farther (max: 50 units) from the graph.
+      </Step>
+      
+      <Step title="Automatic Rotation">
+        When idle, the camera slowly rotates at 0.5 speed, keeping the view dynamic and alive.
+      </Step>
+    </Steps>
+  </Tab>
+  
+  <Tab title="Constraints">
+    **Pan Disabled:**
+    - `enablePan={false}` keeps the graph centered
+    - Users can't accidentally lose the center point
+    
+    **Zoom Limits:**
+    - **Minimum Distance:** 2 units - prevents going inside nodes
+    - **Maximum Distance:** 50 units - maintains visibility of text labels
+    
+    **Auto-Rotation:**
+    - **Speed:** 0.5 (gentle, not distracting)
+    - **Purpose:** Showcases 3D depth and connections
+    - **Overridable:** Any user interaction pauses auto-rotation
+  </Tab>
+  
+  <Tab title="Touch Controls">
+    On mobile devices:
+    - **One finger drag** - Orbit camera
+    - **Pinch zoom** - Zoom in/out
+    - **Auto-rotate** - Works identically to desktop
+  </Tab>
+</Tabs>
+
+<Warning>
+  Panning is intentionally disabled to prevent users from losing the graph center. All navigation focuses on orbit and zoom.
+</Warning>
+
+## Animation Effects
+
+### Float Animation
+
+The entire graph has a subtle floating motion:
+
+```tsx
+<Float speed={1} rotationIntensity={0.2} floatIntensity={0.2}>
+  <ThreeGraph />
+</Float>
+```
+
+<CardGroup cols={3}>
+  <Card title="Speed: 1">
+    Moderate animation pace - not too fast or slow
+  </Card>
+  <Card title="Rotation: 0.2">
+    Subtle tilting adds organic feel
+  </Card>
+  <Card title="Float: 0.2">
+    Gentle up/down bobbing motion
+  </Card>
+</CardGroup>
+
+This creates a **living, breathing quality** without distracting from content.
+
+### Helper Text Animation
+
+When the graph is empty, helper text fades in smoothly:
+
+```tsx
+<AnimatePresence>
+  {nodes.length === 0 && (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+    >
+      Start typing to generate an intelligence map
+    </motion.div>
+  )}
+</AnimatePresence>
+```
+
+- **Enters from below** (`y: 10` → `y: 0`)
+- **Exits upward** (`y: 0` → `y: -10`)
+- **Opacity fades** for smooth transitions
+
+### Loading Indicator Animation
+
+The three-dot loader uses staggered CSS animations:
+
+```tsx
+<div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" 
+     style={{ animationDelay: "0ms" }}></div>
+<div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" 
+     style={{ animationDelay: "150ms" }}></div>
+<div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" 
+     style={{ animationDelay: "300ms" }}></div>
+```
+
+<Tip>
+  The 150ms delay between dots creates a **wave effect** that's more engaging than simultaneous bouncing.
+</Tip>
+
+## UI Overlay
+
+### Header
+
+The top bar shows branding and remains visible during exploration:
+
+```tsx
+<div className="absolute top-0 w-full p-6 z-10 pointer-events-none">
+  <div className="flex items-center space-x-2 pointer-events-auto">
+    <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-black">
+      <Compass size={18} />
+    </div>
+    <h1 className="text-xl font-medium tracking-tight">Intelligence Space</h1>
+  </div>
+</div>
+```
+
+**Design Details:**
+- **Logo:** White circle with black compass icon
+- **Typography:** 20px medium weight, tight tracking
+- **Z-index:** 10 (above 3D canvas)
+- **Pointer Events:** Only logo/title are clickable, rest is transparent
+
+### Search Bar Positioning
+
+```tsx
+<div className="absolute bottom-12 w-full z-10 pointer-events-none flex justify-center">
+  <div className="pointer-events-auto w-full max-w-lg">
+    {/* Search input */}
+  </div>
+</div>
+```
+
+<Accordion title="Why This Layout Works">
+  - **Bottom placement** - Doesn't obscure the 3D graph
+  - **Centered** - Natural focal point for input
+  - **Max width 512px** - Optimal reading width, doesn't stretch too wide on large screens
+  - **Pointer-events-none on parent** - Only the input itself captures clicks
+  - **Z-index 10** - Floats above 3D scene but below any modals
+</Accordion>
+
+## Visual Feedback Summary
+
+<CardGroup cols={2}>
+  <Card title="Hover State" icon="hand-pointer">
+    Nodes turn white instantly when mouse enters
+  </Card>
+  
+  <Card title="Click Feedback" icon="mouse-pointer-click">
+    Loading dots appear above expanding nodes
+  </Card>
+  
+  <Card title="Submit State" icon="loader">
+    Sparkles → Spinner animation during generation
+  </Card>
+  
+  <Card title="Auto-Rotation" icon="rotate-cw">
+    Gentle camera rotation showcases 3D depth
+  </Card>
+  
+  <Card title="Float Animation" icon="waves">
+    Subtle bobbing adds organic movement
+  </Card>
+  
+  <Card title="Billboard Labels" icon="tag">
+    Text always faces camera for readability
+  </Card>
+</CardGroup>
+
+## Keyboard Shortcuts
+
+<Tabs>
+  <Tab title="Input Field">
+    - **Enter** - Submit interest (same as clicking sparkles button)
+    - **Escape** - Blur input field
+    - **Any typing** - Activates input, updates placeholder visibility
+  </Tab>
+  
+  <Tab title="3D Scene">
+    - **Left Click + Drag** - Orbit camera
+    - **Scroll Wheel** - Zoom in/out
+    - **Click Node** - Expand with AI
+    
+    No keyboard shortcuts for 3D navigation (mouse/touch only).
+  </Tab>
+</Tabs>
+
+## Accessibility Considerations
+
+<Note>
+  Intelligence Space is optimized for visual, mouse-driven interaction. The 3D WebGL environment requires pointer input.
+</Note>
+
+### Current Features:
+- **High contrast** - White text on dark background
+- **Large click targets** - Node spheres are 32-segment geometries with generous radii
+- **Clear hover states** - Color change provides obvious feedback
+- **Disabled states** - Input and button become semi-transparent when unavailable
+
+### Future Improvements:
+- Keyboard navigation for node selection
+- Screen reader descriptions for nodes
+- Alternative 2D view for non-WebGL browsers
+
+---
+
+<CardGroup cols={2}>
+  <Card title="3D Visualization" icon="cube" href="/features/3d-visualization">
+    Learn how the 3D graph is rendered
+  </Card>
+  <Card title="AI Expansion" icon="sparkles" href="/features/ai-expansion">
+    Discover how Gemini AI generates concepts
+  </Card>
+</CardGroup>

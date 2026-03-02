@@ -1,0 +1,546 @@
+---
+title: Physics Engine
+description: Custom force-directed graph algorithm powering Intelligence Space's 3D node layout
+---
+
+## Overview
+
+Intelligence Space implements a custom **force-directed graph** algorithm that positions nodes in 3D space using simulated physics. The algorithm runs at 60fps via React Three Fiber's `useFrame` hook.
+
+## Algorithm Fundamentals
+
+<CardGroup cols={2}>
+  <Card title="Repulsion Forces" icon="arrows-left-right">
+    Nodes push each other apart (inverse square law)
+  </Card>
+  <Card title="Spring Forces" icon="link">
+    Links pull connected nodes to ideal distance
+  </Card>
+  <Card title="Center Gravity" icon="bullseye">
+    Weak attraction toward origin prevents drift
+  </Card>
+  <Card title="Velocity Damping" icon="gauge">
+    Friction slows movement for stable convergence
+  </Card>
+</CardGroup>
+
+## Physics Engine Implementation
+
+The complete physics simulation from `src/components/ThreeGraph.tsx`:
+
+```typescript
+function PhysicsEngine() {
+    const { nodes, links } = useInterestStore();
+
+    useFrame(() => {
+        const k = 0.05; // spring strength
+        const damping = 0.8;
+        const repulsion = 1.0;
+        const centerAttract = 0.005;
+
+        // Repulsion and Center Attract
+        for (let i = 0; i < nodes.length; i++) {
+            const n1 = nodes[i];
+            let fx = -n1.x * centerAttract;
+            let fy = -n1.y * centerAttract;
+            let fz = -n1.z * centerAttract;
+
+            for (let j = 0; j < nodes.length; j++) {
+                if (i === j) continue;
+                const n2 = nodes[j];
+
+                const dx = n1.x - n2.x;
+                const dy = n1.y - n2.y;
+                const dz = n1.z - n2.z;
+                let distSq = dx * dx + dy * dy + dz * dz;
+                if (distSq < 0.1) distSq = 0.1; // prevent divide by 0
+
+                let dist = Math.sqrt(distSq);
+
+                const f = repulsion / distSq;
+                fx += (dx / dist) * f;
+                fy += (dy / dist) * f;
+                fz += (dz / dist) * f;
+            }
+            n1.vx += fx;
+            n1.vy += fy;
+            n1.vz += fz;
+        }
+
+        // Spring Forces
+        const nodeMap = new Map<string, InterestNode>();
+        nodes.forEach(n => nodeMap.set(n.id, n));
+
+        links.forEach(link => {
+            const source = nodeMap.get(link.source);
+            const target = nodeMap.get(link.target);
+            if (source && target) {
+                const dx = target.x - source.x;
+                const dy = target.y - source.y;
+                const dz = target.z - source.z;
+                const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                const diff = dist - 3.5; // ideal length
+
+                const f = diff * k;
+                const fx = (dx / dist) * f;
+                const fy = (dy / dist) * f;
+                const fz = (dz / dist) * f;
+
+                source.vx += fx;
+                source.vy += fy;
+                source.vz += fz;
+                target.vx -= fx;
+                target.vy -= fy;
+                target.vz -= fz;
+            }
+        });
+
+        // Apply Velocities
+        nodes.forEach(n => {
+            n.vx *= damping;
+            n.vy *= damping;
+            n.vz *= damping;
+
+            // Speed limit
+            const speed = Math.sqrt(n.vx * n.vx + n.vy * n.vy + n.vz * n.vz);
+            if (speed < 0.001) {
+                n.vx = 0; n.vy = 0; n.vz = 0;
+            }
+
+            n.x += n.vx;
+            n.y += n.vy;
+            n.z += n.vz;
+        });
+    });
+
+    return null;
+}
+```
+
+## Force Types
+
+### 1. Repulsion Forces (Coulomb's Law)
+
+Nodes repel each other using an **inverse square law**, similar to electrostatic repulsion:
+
+```typescript
+const dx = n1.x - n2.x;
+const dy = n1.y - n2.y;
+const dz = n1.z - n2.z;
+let distSq = dx * dx + dy * dy + dz * dz;
+if (distSq < 0.1) distSq = 0.1; // Prevent singularity
+
+let dist = Math.sqrt(distSq);
+
+const f = repulsion / distSq;  // Force magnitude
+fx += (dx / dist) * f;         // Force direction
+fy += (dy / dist) * f;
+fz += (dz / dist) * f;
+```
+
+**Key parameters:**
+
+<ParamField path="repulsion" type="number" default="1.0">
+  Strength of repulsive force. Higher values push nodes farther apart.
+</ParamField>
+
+<ParamField path="distSq" type="number">
+  Squared distance between nodes. Clamped to minimum 0.1 to prevent division by zero.
+</ParamField>
+
+**Physics explanation:**
+- Force is **inversely proportional to distance squared**: `F = k / r²`
+- Closer nodes experience exponentially stronger repulsion
+- Direction is normalized vector pointing away from other node
+- All pairwise forces accumulate into total force on each node
+
+### 2. Spring Forces (Hooke's Law)
+
+Links act as **springs** pulling connected nodes to an ideal distance:
+
+```typescript
+const dx = target.x - source.x;
+const dy = target.y - source.y;
+const dz = target.z - source.z;
+const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+const diff = dist - 3.5; // Distance from ideal length
+
+const f = diff * k;      // Hooke's law: F = k * Δx
+const fx = (dx / dist) * f;
+const fy = (dy / dist) * f;
+const fz = (dz / dist) * f;
+
+source.vx += fx;   // Pull source toward target
+source.vy += fy;
+source.vz += fz;
+target.vx -= fx;   // Pull target toward source (Newton's 3rd law)
+target.vy -= fy;
+target.vz -= fz;
+```
+
+**Key parameters:**
+
+<ParamField path="k" type="number" default="0.05">
+  Spring stiffness constant. Higher values make links stronger.
+</ParamField>
+
+<ParamField path="idealLength" type="number" default="3.5">
+  Target distance between connected nodes. Links at this distance experience zero force.
+</ParamField>
+
+**Physics explanation:**
+- Force is **proportional to displacement**: `F = k * (distance - idealLength)`
+- Links too long pull nodes together
+- Links too short push nodes apart
+- Force applied equally and opposite to both nodes (Newton's 3rd law)
+
+### 3. Center Gravity
+
+Weak attraction toward origin prevents the graph from drifting:
+
+```typescript
+let fx = -n1.x * centerAttract;
+let fy = -n1.y * centerAttract;
+let fz = -n1.z * centerAttract;
+```
+
+<ParamField path="centerAttract" type="number" default="0.005">
+  Strength of attraction to origin. Very small to avoid overpowering other forces.
+</ParamField>
+
+**Purpose:**
+- Prevents nodes from floating to infinity
+- Keeps graph centered in viewport
+- Weak enough not to interfere with other forces
+
+### 4. Velocity Damping (Friction)
+
+Velocities are scaled down each frame to simulate friction:
+
+```typescript
+n.vx *= damping;  // 0.8 = retain 80% of velocity
+n.vy *= damping;
+n.vz *= damping;
+
+// Stop nearly-stationary nodes
+const speed = Math.sqrt(n.vx * n.vx + n.vy * n.vy + n.vz * n.vz);
+if (speed < 0.001) {
+    n.vx = 0; n.vy = 0; n.vz = 0;
+}
+```
+
+<ParamField path="damping" type="number" default="0.8">
+  Velocity retention factor per frame. Lower values slow convergence faster.
+</ParamField>
+
+**Effects:**
+- Prevents oscillation around equilibrium
+- Causes graph to "settle" into stable configuration
+- Threshold at 0.001 stops tiny residual movements
+
+## Simulation Loop
+
+The physics engine runs every frame via React Three Fiber's `useFrame` hook:
+
+<Steps>
+  <Step title="Calculate Repulsion">
+    For each pair of nodes, compute repulsive force and accumulate into `fx, fy, fz`
+  </Step>
+  <Step title="Add Center Gravity">
+    Apply weak force toward origin: `-position * centerAttract`
+  </Step>
+  <Step title="Update Velocities (Repulsion)">
+    Add accumulated forces to node velocities: `vx += fx`
+  </Step>
+  <Step title="Calculate Spring Forces">
+    For each link, compute spring force and apply to both connected nodes
+  </Step>
+  <Step title="Update Velocities (Springs)">
+    Add spring forces to node velocities
+  </Step>
+  <Step title="Apply Damping">
+    Scale velocities by damping factor: `vx *= 0.8`
+  </Step>
+  <Step title="Update Positions">
+    Move nodes by their velocities: `x += vx`
+  </Step>
+</Steps>
+
+## Performance Characteristics
+
+### Computational Complexity
+
+<AccordionGroup>
+  <Accordion title="Repulsion Forces: O(n²)">
+    Every node must check distance to every other node. For 100 nodes, this is 10,000 calculations per frame.
+    
+    **Optimization opportunity:** Use spatial partitioning (octree) to check only nearby nodes.
+  </Accordion>
+  
+  <Accordion title="Spring Forces: O(m)">
+    Only linked nodes need spring calculations. Typically `m < n` for tree structures.
+    
+    Uses `Map` for O(1) node lookups instead of O(n) array search.
+  </Accordion>
+  
+  <Accordion title="Total: O(n² + m)">
+    Dominated by repulsion for large graphs. Practical limit ~200 nodes at 60fps.
+  </Accordion>
+</AccordionGroup>
+
+### Frame Rate
+
+The simulation runs every frame:
+
+```typescript
+useFrame(() => {
+  // Runs at monitor refresh rate (typically 60fps)
+  // Physics updates happen synchronously
+});
+```
+
+<Warning>
+  For graphs with >200 nodes, consider reducing simulation frequency (e.g., every 2nd frame) or implementing spatial optimization.
+</Warning>
+
+## Tuning Parameters
+
+### Parameter Effects Table
+
+| Parameter | Effect when Increased | Recommended Range |
+|-----------|----------------------|------------------|
+| `repulsion` | Nodes spread farther apart | 0.5 - 2.0 |
+| `k` (spring) | Links pull stronger, tighter structure | 0.02 - 0.1 |
+| `idealLength` | More space between connected nodes | 2.0 - 5.0 |
+| `damping` | Slower convergence, more oscillation | 0.7 - 0.9 |
+| `centerAttract` | Graph stays more centered | 0.001 - 0.01 |
+
+### Current Configuration
+
+```typescript
+const k = 0.05;              // Moderate spring strength
+const damping = 0.8;         // Fast convergence
+const repulsion = 1.0;       // Standard repulsion
+const centerAttract = 0.005; // Weak centering
+const idealLength = 3.5;     // Comfortable spacing
+```
+
+These values create a **balanced, stable layout** that:
+- Converges within 2-3 seconds
+- Maintains clear separation between nodes
+- Keeps parent-child nodes reasonably close
+- Prevents excessive drift from center
+
+## Integration with Rendering
+
+### Direct Position Updates
+
+The physics engine **directly mutates** node positions:
+
+```typescript
+// Physics engine mutates these fields
+n.x += n.vx;
+n.y += n.vy;
+n.z += n.vz;
+```
+
+Node rendering reads these positions each frame:
+
+```typescript
+function NodeComponent({ node }: { node: InterestNode }) {
+  const meshRef = useRef<THREE.Mesh>(null);
+  
+  useFrame(() => {
+    if (meshRef.current) {
+      // Read current position from Zustand store
+      meshRef.current.position.set(node.x, node.y, node.z);
+    }
+  });
+  
+  return <mesh ref={meshRef}>...</mesh>;
+}
+```
+
+<Note>
+  This pattern avoids triggering React re-renders for every position update. The same `InterestNode` objects are shared between Zustand store and rendering components.
+</Note>
+
+### Link Rendering
+
+Links are recalculated each frame from current node positions:
+
+```typescript
+function LinksRenderer() {
+  const { nodes, links } = useInterestStore();
+  const linesRef = useRef<THREE.LineSegments>(null);
+  const geometry = useMemo(() => new THREE.BufferGeometry(), []);
+
+  useFrame(() => {
+    const positions = new Float32Array(links.length * 6);
+    let idx = 0;
+
+    // Quick lookup
+    const nodeMap = new Map<string, InterestNode>();
+    nodes.forEach(n => nodeMap.set(n.id, n));
+
+    links.forEach(l => {
+      const source = nodeMap.get(l.source);
+      const target = nodeMap.get(l.target);
+      if (source && target) {
+        // Line from source to target using current positions
+        positions[idx++] = source.x;
+        positions[idx++] = source.y;
+        positions[idx++] = source.z;
+        positions[idx++] = target.x;
+        positions[idx++] = target.y;
+        positions[idx++] = target.z;
+      }
+    });
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.attributes.position.needsUpdate = true;
+  });
+
+  return (
+    <lineSegments ref={linesRef} geometry={geometry}>
+      <lineBasicMaterial color="#ffffff" opacity={0.2} transparent />
+    </lineSegments>
+  );
+}
+```
+
+**Optimization:** Uses `Map` for O(1) node lookups instead of O(n) array searches.
+
+## Initial Node Placement
+
+New nodes spawn with strategic initial positions:
+
+### Root Nodes
+
+```typescript
+// Random position near origin
+let startX = (Math.random() - 0.5) * 2;  // Range: [-1, 1]
+let startY = (Math.random() - 0.5) * 2;
+let startZ = (Math.random() - 0.5) * 2;
+```
+
+### Child Nodes
+
+```typescript
+// Spawn near parent
+const parentNode = get().nodes.find(n => n.id === parentId);
+if (parentNode) {
+  startX = parentNode.x + (Math.random() - 0.5) * 0.5;  // ±0.25 offset
+  startY = parentNode.y + (Math.random() - 0.5) * 0.5;
+  startZ = parentNode.z + (Math.random() - 0.5) * 0.5;
+}
+```
+
+**Strategy:**
+- Root nodes start near origin for central positioning
+- Child nodes start near parent to minimize initial spring forces
+- Random offset prevents nodes from spawning at identical positions
+- Small offset means links start near their ideal length
+
+## Extending the Physics Engine
+
+### Adding Custom Forces
+
+You can add new force types by modifying the `useFrame` loop:
+
+```typescript
+useFrame(() => {
+  // Existing forces...
+  
+  // Custom: Vertical stratification by depth
+  nodes.forEach(n => {
+    const depth = getNodeDepth(n);  // 0 for root, 1 for children, etc.
+    n.vy += (depth * 2 - n.y) * 0.01;  // Pull to target Y level
+  });
+  
+  // Apply velocities...
+});
+```
+
+### Collision Detection
+
+Add sphere-sphere collision:
+
+```typescript
+for (let i = 0; i < nodes.length; i++) {
+  for (let j = i + 1; j < nodes.length; j++) {
+    const n1 = nodes[i];
+    const n2 = nodes[j];
+    const minDist = n1.radius + n2.radius;
+    
+    const dx = n2.x - n1.x;
+    const dy = n2.y - n1.y;
+    const dz = n2.z - n1.z;
+    const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+    
+    if (dist < minDist) {
+      // Push apart to minimum distance
+      const overlap = minDist - dist;
+      const nx = dx / dist;
+      const ny = dy / dist;
+      const nz = dz / dist;
+      
+      n1.x -= nx * overlap * 0.5;
+      n1.y -= ny * overlap * 0.5;
+      n1.z -= nz * overlap * 0.5;
+      n2.x += nx * overlap * 0.5;
+      n2.y += ny * overlap * 0.5;
+      n2.z += nz * overlap * 0.5;
+    }
+  }
+}
+```
+
+### Performance Optimization with Octree
+
+For large graphs (>200 nodes), implement spatial partitioning:
+
+```typescript
+import { Octree } from 'three/examples/jsm/math/Octree';
+
+const octree = new Octree();
+octree.fromGraphNode(nodes);
+
+// Only check nearby nodes for repulsion
+const nearbyNodes = octree.search(node.position, searchRadius);
+```
+
+## Debugging
+
+### Visualize Forces
+
+Add force vector visualization:
+
+```typescript
+<ArrowHelper 
+  dir={new THREE.Vector3(node.vx, node.vy, node.vz).normalize()}
+  origin={new THREE.Vector3(node.x, node.y, node.z)}
+  length={Math.sqrt(node.vx**2 + node.vy**2 + node.vz**2)}
+  color="red"
+/>
+```
+
+### Log Convergence
+
+```typescript
+useFrame(() => {
+  // ... physics calculations ...
+  
+  const totalKineticEnergy = nodes.reduce((sum, n) => {
+    return sum + (n.vx**2 + n.vy**2 + n.vz**2);
+  }, 0);
+  
+  if (totalKineticEnergy < 0.01) {
+    console.log('Graph has converged');
+  }
+});
+```
+
+<Note>
+  The physics engine is a classic force-directed graph algorithm adapted for 3D. For further reading, see [Force-Directed Graph Drawing](https://en.wikipedia.org/wiki/Force-directed_graph_drawing).
+</Note>

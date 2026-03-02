@@ -1,0 +1,153 @@
+---
+title: Welcome to Intelligence Space
+description: Explore and map knowledge in an interactive 3D knowledge graph powered by AI
+---
+
+<img
+  className="block dark:hidden"
+  src="/images/hero-light.png"
+  alt="Intelligence Space - Interactive 3D Knowledge Graph"
+/>
+<img
+  className="hidden dark:block"
+  src="/images/hero-dark.png"
+  alt="Intelligence Space - Interactive 3D Knowledge Graph"
+/>
+
+## What is Intelligence Space?
+
+Intelligence Space is an interactive web application that transforms your interests into beautiful, explorable 3D knowledge graphs. Type any topic, and watch as AI-powered connections materialize in real-time, creating an immersive neural network of related concepts.
+
+Built with cutting-edge web technologies, Intelligence Space combines:
+- **AI-powered knowledge mapping** using Google Gemini 2.5 Flash
+- **Real-time 3D visualization** with React Three Fiber and Three.js
+- **Physics-based graph layout** using custom force-directed algorithms
+- **Glassmorphic UI** for an elegant, modern experience
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card
+    title="AI-powered expansion"
+    icon="sparkles"
+    iconType="duotone"
+  >
+    Enter any interest and let Google Gemini generate 3-5 related sub-topics. Click any node to expand further and discover deeper connections.
+  </Card>
+  <Card
+    title="Interactive 3D graph"
+    icon="cube"
+    iconType="duotone"
+  >
+    Navigate your knowledge graph in real-time 3D space with orbit controls, auto-rotation, and smooth physics-based node positioning.
+  </Card>
+  <Card
+    title="Force-directed layout"
+    icon="arrows-maximize"
+    iconType="duotone"
+  >
+    Nodes automatically arrange themselves using spring forces and repulsion physics, creating organic, readable network structures.
+  </Card>
+  <Card
+    title="Real-time rendering"
+    icon="bolt"
+    iconType="duotone"
+  >
+    WebGL-powered rendering delivers 60fps performance with dynamic lighting, stars background, and smooth animations.
+  </Card>
+</CardGroup>
+
+## How it works
+
+<Steps>
+  <Step title="Enter your interest">
+    Type any topic into the search input at the bottom of the screen - "Quantum Physics", "Renaissance Art", "Machine Learning", anything that sparks your curiosity.
+  </Step>
+  
+  <Step title="AI generates connections">
+    The app sends your interest to a Next.js Server Action that queries Google Gemini 2.5 Flash, which returns 3-5 related sub-topics in JSON format.
+  </Step>
+  
+  <Step title="Graph materializes in 3D">
+    Your root node appears in the 3D space, connected to its sub-topics. The custom physics engine applies spring forces and repulsion to arrange nodes naturally.
+  </Step>
+  
+  <Step title="Explore and expand">
+    Click any node to expand it further. Orbit around your knowledge graph, zoom in and out, and watch it grow into a complex neural network.
+  </Step>
+</Steps>
+
+## The technology stack
+
+Intelligence Space is built with modern web technologies designed for real-time interactivity and visual performance:
+
+<CardGroup cols={2}>
+  <Card title="Frontend" icon="browser">
+    - **Next.js 16** with App Router
+    - **React 19** for UI composition
+    - **TypeScript** for type safety
+    - **Tailwind CSS v4** for styling
+  </Card>
+  
+  <Card title="3D rendering" icon="cube">
+    - **React Three Fiber** for declarative Three.js
+    - **Three.js** for WebGL rendering
+    - **@react-three/drei** for controls and helpers
+    - **Custom physics engine** for graph layout
+  </Card>
+  
+  <Card title="State management" icon="database">
+    - **Zustand** for global state
+    - **Framer Motion** for 2D animations
+  </Card>
+  
+  <Card title="AI integration" icon="brain">
+    - **Google Gemini API** (2.5 Flash model)
+    - **Server Actions** for secure API calls
+  </Card>
+</CardGroup>
+
+<Note>
+  The application uses a **custom physics engine** instead of d3-force-3d for node positioning. The engine implements spring forces between connected nodes and repulsion forces between all nodes, creating organic, readable layouts.
+</Note>
+
+## Architecture overview
+
+Intelligence Space follows a clean architecture pattern:
+
+```
+src/
+├── app/
+│   ├── page.tsx          # Main UI with search input
+│   ├── layout.tsx        # Root layout
+│   └── actions.ts        # Server Actions for Gemini API
+├── components/
+│   └── ThreeGraph.tsx    # 3D graph visualization
+└── store/
+    └── useInterestStore.ts # Zustand store for nodes/links
+```
+
+**Key architectural decisions:**
+
+- **Server Actions** keep your Gemini API key secure server-side (src/app/actions.ts:1)
+- **Zustand store** manages graph state independently from React render cycles (src/store/useInterestStore.ts:42)
+- **Custom physics** runs in `useFrame` for smooth 60fps updates (src/components/ThreeGraph.tsx:114)
+- **Glassmorphic UI** overlays the 3D scene without blocking interaction (src/app/page.tsx:66)
+
+## User experience highlights
+
+Intelligence Space is designed for exploration and discovery:
+
+- **Immersive environment**: Dark space background with 5000 stars creates a cosmic feel
+- **Responsive feedback**: Loading indicators show when nodes are expanding
+- **Smooth interactions**: Hover effects, auto-rotation, and physics-based movement
+- **Visual clarity**: Color-coded nodes with white labels and glow effects
+- **Intuitive controls**: Simple search input and click-to-expand interaction
+
+<Tip>
+  Try starting with broad topics like "Artificial Intelligence" or "Philosophy" and expanding them to create rich, multi-layered knowledge graphs!
+</Tip>
+
+## Ready to get started?
+
+Follow the [quickstart guide](/quickstart) to install Intelligence Space locally and start exploring your interests in 3D.
