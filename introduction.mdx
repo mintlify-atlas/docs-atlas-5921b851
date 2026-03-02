@@ -83,16 +83,16 @@ Intelligence Space is built with modern web technologies designed for real-time 
 
 <CardGroup cols={2}>
   <Card title="Frontend" icon="browser">
-    - **Next.js 16** with App Router
-    - **React 19** for UI composition
-    - **TypeScript** for type safety
+    - **Next.js 16.1.6** with App Router
+    - **React 19.2.3** for UI composition
+    - **TypeScript 5** for type safety
     - **Tailwind CSS v4** for styling
   </Card>
   
   <Card title="3D rendering" icon="cube">
-    - **React Three Fiber** for declarative Three.js
-    - **Three.js** for WebGL rendering
-    - **@react-three/drei** for controls and helpers
+    - **React Three Fiber 9.5.0** for declarative Three.js
+    - **Three.js 0.183.2** for WebGL rendering
+    - **@react-three/drei 10.7.7** for controls and helpers
     - **Custom physics engine** for graph layout
   </Card>
   
@@ -108,7 +108,7 @@ Intelligence Space is built with modern web technologies designed for real-time 
 </CardGroup>
 
 <Note>
-  The application uses a **custom physics engine** instead of d3-force-3d for node positioning. The engine implements spring forces between connected nodes and repulsion forces between all nodes, creating organic, readable layouts.
+  The application uses a **custom physics engine** (not d3-force-3d, despite it being in dependencies) for node positioning. The engine implements spring forces between connected nodes, inverse-square repulsion between all nodes, center gravity, and velocity damping, creating organic, readable layouts.
 </Note>
 
 ## Architecture overview

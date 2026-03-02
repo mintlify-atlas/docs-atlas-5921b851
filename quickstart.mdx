@@ -1,0 +1,350 @@
+---
+title: 'Quickstart'
+description: 'Get Intelligence Space running on your local machine in under 5 minutes'
+---
+
+Intelligence Space is an interactive 3D knowledge graph powered by AI. This guide will help you set up and run the application locally.
+
+## Prerequisites
+
+Before you begin, make sure you have:
+- Node.js 20 or higher installed
+- A Google AI API key (get one at [Google AI Studio](https://aistudio.google.com/app/apikey))
+- A modern web browser with WebGL support
+
+## Installation
+
+<Steps>
+  <Step title="Clone the repository">
+    First, clone the Intelligence Space repository to your local machine:
+
+    ```bash
+    git clone https://github.com/MateusMCG16/intelligence.git
+    cd intelligence
+    ```
+  </Step>
+
+  <Step title="Install dependencies">
+    Install all required packages using your preferred package manager:
+
+    <CodeGroup>
+    ```bash npm
+    npm install
+    ```
+
+    ```bash yarn
+    yarn install
+    ```
+
+    ```bash pnpm
+    pnpm install
+    ```
+    </CodeGroup>
+
+    <Note>
+    The installation includes key dependencies like Next.js, React Three Fiber, Three.js, and the Google Generative AI SDK.
+    </Note>
+  </Step>
+
+  <Step title="Configure environment variables">
+    Create a `.env.local` file in the root directory and add your Gemini API key:
+
+    ```bash .env.local
+    GEMINI_API_KEY=your_api_key_here
+    ```
+
+    <Warning>
+    Never commit your `.env.local` file to version control. This file contains sensitive credentials and should be kept private.
+    </Warning>
+
+    You can use the provided `.env.example` as a template:
+
+    ```bash
+    cp .env.example .env.local
+    ```
+
+    Then edit `.env.local` to add your actual API key.
+  </Step>
+
+  <Step title="Start the development server">
+    Launch the application in development mode:
+
+    <CodeGroup>
+    ```bash npm
+    npm run dev
+    ```
+
+    ```bash yarn
+    yarn dev
+    ```
+
+    ```bash pnpm
+    pnpm dev
+    ```
+    </CodeGroup>
+
+    The server will start on `http://localhost:3000`.
+  </Step>
+
+  <Step title="Open in your browser">
+    Navigate to [http://localhost:3000](http://localhost:3000) to see your Intelligence Space in action.
+  </Step>
+</Steps>
+
+## Your First Knowledge Graph
+
+Once the application is running, follow these steps to create your first interactive knowledge graph:
+
+<Steps>
+  <Step title="Enter an interest">
+    In the search bar at the bottom of the screen, type a topic you're interested in exploring. For example:
+    - "Quantum Physics"
+    - "Renaissance Art"
+    - "Machine Learning"
+    - "Ancient Philosophy"
+  </Step>
+
+  <Step title="Submit and watch the expansion">
+    Press Enter or click the sparkle icon. The system will:
+    1. Create a central node for your topic in 3D space
+    2. Query the Gemini AI model for related subtopics
+    3. Automatically generate 3-5 connected nodes around your main topic
+
+    <Tip>
+    The first expansion happens automatically when you submit a topic. You'll see a loading animation while the AI generates related concepts.
+    </Tip>
+  </Step>
+
+  <Step title="Interact with the graph">
+    Explore your knowledge graph using these controls:
+    - **Click and drag** to rotate the view
+    - **Scroll** to zoom in and out
+    - **Click any node** to expand it with more related subtopics
+    - **Hover over nodes** to see them highlight in white
+
+    The graph uses physics simulation to automatically arrange nodes, so they'll move organically into position.
+  </Step>
+
+  <Step title="Build your knowledge network">
+    Continue clicking on nodes to expand them. Each expansion:
+    - Creates 3-5 new child nodes
+    - Connects them to the parent with visible links
+    - Uses AI to ensure topics are contextually relevant
+
+    The graph grows infinitely, limited only by your curiosity!
+  </Step>
+</Steps>
+
+## Understanding the Code
+
+Intelligence Space is built with a modern React and Next.js architecture. Here are the key files:
+
+### Core Application Files
+
+| File | Purpose |
+|------|---------|
+| `src/app/page.tsx` | Main page component with the search interface and Canvas setup |
+| `src/app/actions.ts` | Server Actions for AI integration with Gemini API |
+| `src/components/ThreeGraph.tsx` | 3D graph rendering, physics simulation, and node interactions |
+| `src/store/useInterestStore.ts` | Zustand store managing nodes, links, and graph state |
+
+### How It Works
+
+<AccordionGroup>
+  <Accordion title="User Input Flow">
+    When you enter a topic in `page.tsx:17-39`:
+
+    ```tsx src/app/page.tsx
+    const handleSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!input.trim() || isGenerating) return;
+
+      const label = input.trim();
+      setInput("");
+
+      // Create the root node first
+      const newNode = addNode(label);
+
+      // Automatically trigger expansion
+      try {
+        setIsGenerating(true);
+        const { generateSubInterests } = await import('@/app/actions');
+        const sub = await generateSubInterests(label);
+        useInterestStore.getState().addNodes(sub, newNode.id);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsGenerating(false);
+      }
+    };
+    ```
+
+    The system creates a root node, then automatically calls the AI to generate related subtopics.
+  </Accordion>
+
+  <Accordion title="AI Integration">
+    The `generateSubInterests` function in `actions.ts:7-47` uses Google's Gemini 2.5 Flash model:
+
+    ```tsx src/app/actions.ts
+    export async function generateSubInterests(interest: string) {
+      try {
+        if (!process.env.GEMINI_API_KEY) {
+          console.warn("GEMINI_API_KEY is not defined. Using mock data.");
+          return [
+            `${interest} Essentials`,
+            `Advanced ${interest}`,
+            `${interest} Tools`,
+          ];
+        }
+
+        const response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: `You are an AI that helps brainstorm and expand on interests...`,
+        });
+        
+        const text = response.text;
+        const cleanText = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+        const array = JSON.parse(cleanText);
+        
+        return array.slice(0, 5); // Return max 5 items
+      } catch (error) {
+        console.error("Gemini API error:", error);
+        return [ /* fallback mock data */ ];
+      }
+    }
+    ```
+
+    <Note>
+    The function includes fallback mock data if the API key is missing, allowing you to test the UI without AI.
+    </Note>
+  </Accordion>
+
+  <Accordion title="3D Rendering">
+    The `ThreeGraph.tsx` component handles all 3D visualization:
+
+    - **NodeComponent** (lines 10-67): Renders individual spheres with labels
+    - **LinksRenderer** (lines 69-109): Draws connections between related nodes
+    - **PhysicsEngine** (lines 111-196): Simulates forces to position nodes naturally
+
+    The physics simulation uses:
+    - **Repulsion forces**: Push nodes apart to prevent overlap
+    - **Spring forces**: Pull connected nodes toward their ideal distance
+    - **Center attraction**: Keep the graph from drifting too far away
+    - **Damping**: Slow down movement for smooth, natural animation
+  </Accordion>
+
+  <Accordion title="State Management">
+    The `useInterestStore.ts` uses Zustand for global state:
+
+    ```tsx src/store/useInterestStore.ts
+    export interface InterestNode {
+      id: string;
+      label: string;
+      parentId: string | null;
+      x: number;
+      y: number;
+      z: number;
+      vx: number;  // velocity for physics
+      vy: number;
+      vz: number;
+      color: string;
+      radius: number;
+    }
+    ```
+
+    Key functions:
+    - `addNode`: Creates a single node with physics properties
+    - `addNodes`: Batch creates multiple child nodes
+    - Automatically generates links between parent and child nodes
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="API Key Not Working">
+    If you see mock data instead of AI-generated topics:
+
+    1. Verify your API key is correct in `.env.local`
+    2. Make sure the file is named exactly `.env.local` (not `.env`)
+    3. Restart the development server after adding the key
+    4. Check that your API key has proper permissions in Google AI Studio
+
+    You can test your API key by checking the browser console for errors.
+  </Accordion>
+
+  <Accordion title="Graph Not Rendering">
+    If you see a black screen without the 3D graph:
+
+    1. Check browser console for WebGL errors
+    2. Ensure your browser supports WebGL (test at [get.webgl.org](https://get.webgl.org/))
+    3. Update your graphics drivers
+    4. Try a different browser (Chrome and Firefox have the best WebGL support)
+  </Accordion>
+
+  <Accordion title="Slow Performance">
+    If the graph becomes laggy with many nodes:
+
+    1. Close other browser tabs to free up GPU resources
+    2. Reduce the number of nodes by refreshing the page
+    3. Disable auto-rotate by removing `autoRotate` prop in `page.tsx:58`
+    4. Lower the star count in `page.tsx:61` (currently 5000)
+
+    The physics simulation is computationally intensive with 50+ nodes.
+  </Accordion>
+
+  <Accordion title="Installation Errors">
+    If you encounter errors during `npm install`:
+
+    1. Ensure you're using Node.js 20 or higher: `node --version`
+    2. Clear your package manager cache:
+       ```bash
+       npm cache clean --force
+       ```
+    3. Delete `node_modules` and `package-lock.json`, then reinstall:
+       ```bash
+       rm -rf node_modules package-lock.json
+       npm install
+       ```
+    4. Check for version conflicts in the error message
+  </Accordion>
+
+  <Accordion title="Port Already in Use">
+    If port 3000 is already taken:
+
+    1. Kill the process using port 3000:
+       ```bash
+       lsof -ti:3000 | xargs kill -9
+       ```
+    2. Or run on a different port:
+       ```bash
+       npm run dev -- -p 3001
+       ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+Now that you have Intelligence Space running, explore these topics:
+
+<CardGroup cols={2}>
+  <Card title="Architecture Overview" icon="sitemap" href="/technical/architecture">
+    Learn how the 3D graph, AI integration, and state management work together
+  </Card>
+  
+  <Card title="Physics Engine" icon="atom" href="/technical/physics-engine">
+    Understand the custom force-directed graph algorithm
+  </Card>
+  
+  <Card title="3D Visualization" icon="cube" href="/features/3d-visualization">
+    Explore the WebGL rendering and visual effects
+  </Card>
+  
+  <Card title="API Reference" icon="code" href="/api/generate-sub-interests">
+    Detailed documentation of server actions and store methods
+  </Card>
+</CardGroup>
+
+<Tip>
+Join our community to share your knowledge graphs and get help from other users!
+</Tip>

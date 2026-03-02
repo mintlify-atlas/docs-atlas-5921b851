@@ -50,20 +50,25 @@ If any error occurs during the API call or response parsing:
 ## Usage Example
 
 ```typescript
-import { generateSubInterests } from '@/app/actions';
-
-// In a server component or another server action
-const subTopics = await generateSubInterests('Machine Learning');
-// Returns: ["Neural Networks", "Deep Learning Frameworks", ...]
-
-// In a client component (with transition)
-const handleExpand = async (interest: string) => {
-  const [isPending, startTransition] = useTransition();
+// In a client component (page.tsx:17-39)
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  const label = input.trim();
   
-  startTransition(async () => {
-    const subInterests = await generateSubInterests(interest);
-    // Process the results
-  });
+  // Create the root node first
+  const newNode = addNode(label);
+  
+  try {
+    setIsGenerating(true);
+    // Dynamic import for client-side usage
+    const { generateSubInterests } = await import('@/app/actions');
+    const sub = await generateSubInterests(label);
+    useInterestStore.getState().addNodes(sub, newNode.id);
+  } catch (err) {
+    console.error(err);
+  } finally {
+    setIsGenerating(false);
+  }
 };
 ```
 
