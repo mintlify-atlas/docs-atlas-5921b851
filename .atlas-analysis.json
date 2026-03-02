@@ -1,0 +1,86 @@
+{
+  "projectType": "saas",
+  "projectName": "Intelligence Space",
+  "projectDescription": "An interactive 3D web app that maps and connects your interests using AI-powered knowledge graphs.",
+  "theme": "palm",
+  "primaryColor": "#8E75B2",
+  "lightColor": "#c084fc",
+  "darkColor": "#6b21a8",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/3d-visualization",
+              "features/ai-expansion",
+              "features/interactive-navigation"
+            ]
+          },
+          {
+            "group": "Technical Guide",
+            "pages": [
+              "technical/architecture",
+              "technical/state-management",
+              "technical/physics-engine"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/environment-setup",
+              "configuration/api-keys"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Server Actions",
+            "pages": [
+              "api/generate-sub-interests"
+            ]
+          },
+          {
+            "group": "Store",
+            "pages": [
+              "api/interest-store"
+            ]
+          },
+          {
+            "group": "Components",
+            "pages": [
+              "api/three-graph",
+              "api/node-component"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Interactive 3D knowledge graph visualization",
+    "AI-powered interest expansion using Google Gemini",
+    "Real-time physics simulation for node positioning",
+    "Glassmorphism UI design with WebGL rendering",
+    "Click-to-expand nodes for deeper exploration"
+  ],
+  "publicApiSurface": [
+    "generateSubInterests(interest: string)",
+    "useInterestStore.addNode(label: string, parentId?: string | null)",
+    "useInterestStore.addNodes(labels: string[], parentId: string)",
+    "ThreeGraph component",
+    "NodeComponent"
+  ]
+}
